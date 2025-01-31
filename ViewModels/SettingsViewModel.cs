@@ -1,48 +1,36 @@
 ﻿using Stylet;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RTL.ViewModels
 {
     public class SettingsViewModel : Screen
     {
-        private string _selectedComPort;
-        public string SelectedComPort
+        private string _selectedTheme;
+        public string SelectedTheme
         {
-            get => _selectedComPort;
-            set => SetAndNotify(ref _selectedComPort, value);
+            get => _selectedTheme;
+            set
+            {
+                SetAndNotify(ref _selectedTheme, value);
+                ApplyTheme(value);
+            }
         }
 
-        private string _selectedDutPort;
-        public string SelectedDutPort
-        {
-            get => _selectedDutPort;
-            set => SetAndNotify(ref _selectedDutPort, value);
-        }
-
-        private string _logsPath;
-        public string LogsPath
-        {
-            get => _logsPath;
-            set => SetAndNotify(ref _logsPath, value);
-        }
-
-        private bool _isDarkTheme;
-        public bool IsDarkTheme
-        {
-            get => _isDarkTheme;
-            set => SetAndNotify(ref _isDarkTheme, value);
-        }
-
-        public BindableCollection<string> AvailableComPorts { get; set; }
-        public BindableCollection<string> AvailableDutPorts { get; set; }
+        public List<string> Themes { get; set; } = new List<string> { "Светлая", "Темная" };
 
         public SettingsViewModel()
         {
-            // Инициализация доступных портов и настроек
+            // Загрузите сохраненную тему из настроек
+            SelectedTheme = Properties.Settings.Default.Theme;
+        }
+
+        private void ApplyTheme(string theme)
+        {
+            // Примените тему и сохраните настройки
+            Properties.Settings.Default.Theme = theme;
+            Properties.Settings.Default.Save();
+
+            // Логика применения темы (например, через HandyControl)
         }
     }
 }

@@ -3,107 +3,38 @@ using RTL.ViewModels;
 
 namespace RTL.ViewModels
 {
-    public class MainViewModel : Screen
+    public class MainViewModel : Conductor<IScreen>.Collection.OneActive, IDisposable
     {
         private readonly RtlSwViewModel _rtlSwViewModel;
-        private readonly RtlPoeViewModel _rtlPoeViewModel;
         private readonly SettingsViewModel _settingsViewModel;
-        private readonly ModbusViewModel _modbusViewModel;
 
-        private object _currentView;
-        public object CurrentView
+        public MainViewModel(RtlSwViewModel rtlSwViewModel, SettingsViewModel settingsViewModel)
         {
-            get => _currentView;
-            set => SetAndNotify(ref _currentView, value);
-        }
+            _rtlSwViewModel = rtlSwViewModel ?? throw new ArgumentNullException(nameof(rtlSwViewModel));
+            _settingsViewModel = settingsViewModel ?? throw new ArgumentNullException(nameof(settingsViewModel));
 
-        /* public MainViewModel(RtlSwViewModel rtlSwViewModel,
-                             RtlPoeViewModel rtlPoeViewModel,
-                             SettingsViewModel settingsViewModel,
-                             ModbusViewModel modbusViewModel)
-         {
-             _rtlSwViewModel = rtlSwViewModel;
-             _rtlPoeViewModel = rtlPoeViewModel;
-             _settingsViewModel = settingsViewModel;
-             _modbusViewModel = modbusViewModel;
-
-             // По умолчанию открываем RTL-SW
-             CurrentView = _rtlSwViewModel;
-         }*/
-        public MainViewModel(RtlSwViewModel rtlSwViewModel,
-                     
-                     SettingsViewModel settingsViewModel)
-
-        {
-            _rtlSwViewModel = rtlSwViewModel;
-
-            _settingsViewModel = settingsViewModel;
-
+            // Добавляем экраны в коллекцию
+            Items.Add(_rtlSwViewModel);
+            Items.Add(_settingsViewModel);
 
             // По умолчанию открываем RTL-SW
-            CurrentView = _rtlSwViewModel;
+            ActivateItem(_rtlSwViewModel);
         }
 
         // Команды для навигации
-        public void NavigateToRtlSw() => CurrentView = _rtlSwViewModel;
-        public void NavigateToRtlPoe() => CurrentView = _rtlPoeViewModel;
-        public void NavigateToSettings() => CurrentView = _settingsViewModel;
-        public void NavigateToModbus() => CurrentView = _modbusViewModel;
-
-        // Статусные свойства
-        private bool _isModbusConnected;
-        public bool IsModbusConnected
+        public void NavigateToRtlSw()
         {
-            get => _isModbusConnected;
-            set
-            {
-                SetAndNotify(ref _isModbusConnected, value);
-                NotifyOfPropertyChange(nameof(ModbusStatusColor));
-            }
+            ActivateItem(_rtlSwViewModel);
         }
 
-        public string ModbusStatusColor => IsModbusConnected ? "GreenYellow" : "Tomato";
-
-        private bool _isServerConnected;
-        public bool IsServerConnected
+        public void NavigateToSettings()
         {
-            get => _isServerConnected;
-            set
-            {
-                SetAndNotify(ref _isServerConnected, value);
-                NotifyOfPropertyChange(nameof(ServerStatusColor));
-            }
+            ActivateItem(_settingsViewModel);
         }
 
-        public string ServerStatusColor => IsServerConnected ? "GreenYellow" : "Tomato";
-
-        private bool _isDutConnected;
-        public bool IsDutConnected
+        public void Dispose()
         {
-            get => _isDutConnected;
-            set
-            {
-                SetAndNotify(ref _isDutConnected, value);
-                NotifyOfPropertyChange(nameof(DutStatusColor));
-            }
+            // Очистка ресурсов, если необходимо
         }
-
-        public string DutStatusColor => IsDutConnected ? "GreenYellow" : "Tomato";
-
-        private bool _isRunActive;
-        public bool IsRunActive
-        {
-            get => _isRunActive;
-            set
-            {
-                SetAndNotify(ref _isRunActive, value);
-                NotifyOfPropertyChange(nameof(RunStatusColor));
-            }
-        }
-
-        public string RunStatusColor => IsRunActive ? "GreenYellow" : "Tomato";
-
-
-
     }
 }

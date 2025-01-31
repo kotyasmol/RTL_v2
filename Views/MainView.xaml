@@ -3,58 +3,29 @@
            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
            xmlns:hc="https://handyorg.github.io/handycontrol"
            xmlns:local="clr-namespace:RTL.Views"
-           WindowState="Maximized"
+           xmlns:s="https://github.com/canton7/Stylet"
+           Title="MainView"
            Width="1100"
            Height="720"
+           MinWidth="1100"
+           MinHeight="720"
+           WindowState="Maximized"
            WindowStartupLocation="CenterScreen">
-
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="{Binding SideMenuWidth}" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="200"/>
+            <!-- Для SideMenu -->
+            <ColumnDefinition Width="*"/>
+            <!-- Для основного контента -->
         </Grid.ColumnDefinitions>
 
-        <!-- SideMenu с возможностью скрытия -->
-        <Grid Grid.Column="0">
-            <hc:SideMenu Width="200" Visibility="{Binding IsSideMenuVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <hc:SideMenuItem Header="RTL-SW" Command="{Binding NavigateToRtlSwCommand}"/>
-                <hc:SideMenuItem Header="RTL-POE" Command="{Binding NavigateToRtlPoeCommand}"/>
-                <hc:SideMenuItem Header="Настройки" Command="{Binding NavigateToSettingsCommand}"/>
-                <hc:SideMenuItem Header="Modbus" Command="{Binding NavigateToModbusCommand}"/>
-            </hc:SideMenu>
-        </Grid>
-
-        <!-- Кнопка для скрытия/показа меню -->
-        <Button Grid.Column="0"
-                Content="☰"
-                Width="40"
-                Height="40"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Margin="5"
-                Command="{Binding ToggleSideMenuCommand}"/>
+        <!-- SideMenu -->
+        <hc:SideMenu Grid.Column="0" Width="200">
+            <hc:SideMenuItem Header="RTL-SW" Command="{s:Action NavigateToRtlSw}"/>
+            <hc:SideMenuItem Header="Настройки" Command="{s:Action NavigateToSettings}"/>
+        </hc:SideMenu>
 
         <!-- Основной контент -->
-        <ContentControl Grid.Column="1" Content="{Binding CurrentView}"/>
-
-        <!-- Статусные индикаторы -->
-        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,0">
-            <StackPanel Orientation="Horizontal" Margin="5">
-                <TextBlock Text="Modbus" VerticalAlignment="Center"/>
-                <Ellipse Width="15" Height="15" Fill="{Binding ModbusStatusColor}" Margin="5,0,0,0"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="5">
-                <TextBlock Text="RUN" VerticalAlignment="Center"/>
-                <Ellipse Width="15" Height="15" Fill="{Binding RunStatusColor}" Margin="5,0,0,0"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="5">
-                <TextBlock Text="Сервер"/>
-                <Ellipse Width="15" Height="15" Fill="{Binding ServerStatusColor}" Margin="5,0,0,0"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="5">
-                <TextBlock Text="DUT" VerticalAlignment="Center"/>
-                <Ellipse Width="15" Height="15" Fill="{Binding DutStatusColor}" Margin="5,0,0,0"/>
-            </StackPanel>
-        </StackPanel>
+        <ContentControl Grid.Column="1" s:View.Model="{Binding ActiveItem}"/>
     </Grid>
 </hc:Window>

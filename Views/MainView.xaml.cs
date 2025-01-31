@@ -1,4 +1,5 @@
-﻿using System;
+﻿using RTL.ViewModels;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -22,6 +23,8 @@ namespace RTL.Views
         public MainView()
         {
             InitializeComponent();
+
         }
+
     }
 }

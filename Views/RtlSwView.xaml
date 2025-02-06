@@ -3,35 +3,87 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:hc="https://handyorg.github.io/handycontrol">
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <!-- Высота изображения -->
-            <RowDefinition Height="Auto"/>
-            <!-- Высота кнопок -->
-            <RowDefinition Height="*"/>
-            <!-- Пространство для лога -->
-            <RowDefinition Height="200"/>
-            <!-- Дополнительная строка для лога -->
-        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
-            <!-- Левый столбец -->
             <ColumnDefinition Width="*"/>
-            <!-- Правый столбец -->
-            <ColumnDefinition Width="*"/>
-            <!-- Дополнительный столбец -->
         </Grid.ColumnDefinitions>
 
-        <!-- Изображение с отступом слева -->
-        <Image Grid.Row="0" Grid.Column="0" Source="/RTL;component/Resources/Images/PlateImages/RTL_SW1.png" Width="500" Height="500" Grid.ColumnSpan="2" Margin="20,0,0,0"/>
+        <!-- Левая колонка -->
+        <StackPanel Grid.Column="0" HorizontalAlignment="Stretch" Margin="15,15,0,0">
+            <!-- Изображение -->
+            <Border CornerRadius="50" ClipToBounds="True">
+                <Image Source="/RTL;component/Resources/Images/PlateImages/RTL_SW1.png"
+                       Stretch="UniformToFill"/>
+            </Border>
 
-        <!-- Логи на левой половине экрана с одинаковыми отступами -->
-        <ListBox Grid.Row="3" Grid.Column="0" Margin="20,10,0,10" ItemsSource="{Binding LogMessages}">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding Message}" Foreground="{Binding Color}"/>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+
+            <!-- ProgressButton -->
+            <ProgressBar Minimum="0" Maximum="100" Height="15" Margin="0,10,0,10"
+                 Value="100" />
+
+            <!-- Логи -->
+            <ListBox Margin="0,0,0,0" MinHeight="300" ItemsSource="{Binding LogMessages}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Message}" Foreground="{Binding Color}"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
+
+        <StackPanel Grid.Column="1" HorizontalAlignment="Stretch" Margin="5,150,0,0">
+            <WrapPanel Orientation="Horizontal">
+                <!-- 8 элементов -->
+                <Border Width="150" Height="60" CornerRadius="10" Background="LightGray" Margin="5" Padding="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <!-- Для круга -->
+                            <ColumnDefinition Width="*" />
+                            <!-- Для текста -->
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Круг с текстом -->
+                        <Border Width="40" Height="40" CornerRadius="20" Background="LightBlue"
+                        VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="52V" FontWeight="Bold" Foreground="Black"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+
+                        <!-- Текстовые данные -->
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Value1}" FontSize="16" FontWeight="Bold"/>
+                            <TextBlock Text="54000 - 66000" FontSize="12" Foreground="Gray"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Дублируем ещё 7 раз с привязкой к разным данным -->
+                <Border Width="150" Height="60" CornerRadius="10" Background="LightGray" Margin="5" Padding="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Width="40" Height="40" CornerRadius="20" Background="LightBlue"
+                        VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="52V" FontWeight="Bold" Foreground="Black"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Value2}" FontSize="16" FontWeight="Bold"/>
+                            <TextBlock Text="54000 - 66000" FontSize="12" Foreground="Gray"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Добавь ещё 6 таких же блоков, заменяя {Binding ValueX} -->
+            </WrapPanel>
+        </StackPanel>
+
+
     </Grid>
 </UserControl>

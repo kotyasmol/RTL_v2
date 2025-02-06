@@ -9,7 +9,7 @@
            Height="720"
            MinWidth="1100"
            MinHeight="720"
-           WindowState="Maximized"
+           WindowState="Normal"
            WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.ColumnDefinitions>
@@ -21,9 +21,9 @@
 
         <!-- SideMenu -->
         <hc:SideMenu Grid.Column="0" Width="200">
-            <hc:SideMenuItem Header="RTL-SW" Command="{s:Action NavigateToRtlSw}"/>
-            <hc:SideMenuItem Header="RTL-POE" Command="{s:Action NavigateToRtlPoe}"/>
-            <hc:SideMenuItem Header="Настройки" Command="{s:Action NavigateToSettings}"/>
+            <hc:SideMenuItem Header="RTL-SW" FontSize="15" Command="{s:Action NavigateToRtlSw}"/>
+            <hc:SideMenuItem Header="RTL-POE" FontSize="15" Command="{s:Action NavigateToRtlPoe}"/>
+            <hc:SideMenuItem Header="Настройки" FontSize="15" Command="{s:Action NavigateToSettings}"/>
         </hc:SideMenu>
 
         <!-- Основной контент -->

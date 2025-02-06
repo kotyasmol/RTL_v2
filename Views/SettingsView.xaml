@@ -2,8 +2,55 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:hc="https://handyorg.github.io/handycontrol">
-    <StackPanel Margin="10">
-        <TextBlock Text="Выбор темы:" FontWeight="Bold"/>
-        <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}" DisplayMemberPath="Name"/>
-    </StackPanel>
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="10"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Выбор темы -->
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Выбор темы:" FontWeight="Bold" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="0" Grid.Column="2" ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}" Width="200" Margin="0,0,81,0" HorizontalAlignment="Left"/>
+
+        <!-- Папка для логов -->
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Папка для логов:" FontWeight="Bold" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal">
+            <TextBox Text="{Binding LogFolderPath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
+            <Button Content="Выбрать..." Command="{Binding SelectLogFolderCommand}" Margin="5,0,0,0"/>
+        </StackPanel>
+
+        <!-- Папка для отчетов -->
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Папка для отчетов:" FontWeight="Bold" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="4" Grid.Column="2" Orientation="Horizontal">
+            <TextBox Text="{Binding ReportFolderPath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
+            <Button Content="Выбрать..." Command="{Binding SelectReportFolderCommand}" Margin="5,0,0,0"/>
+        </StackPanel>
+
+        <!-- Профиль RTL-SW -->
+        <TextBlock Grid.Row="6" Grid.Column="0" Text="Профиль RTL-SW:" FontWeight="Bold" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="6" Grid.Column="2" Orientation="Horizontal">
+            <TextBox Text="{Binding RtlSwProfilePath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
+            <Button Content="Выбрать..." Command="{Binding SelectRtlSwProfileCommand}" Margin="5,0,0,0"/>
+        </StackPanel>
+
+        <!-- Профиль RTL-POE -->
+        <TextBlock Grid.Row="8" Grid.Column="0" Text="Профиль RTL-POE:" FontWeight="Bold" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="8" Grid.Column="2" Orientation="Horizontal">
+            <TextBox Text="{Binding RtlPoeProfilePath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
+            <Button Content="Выбрать..." Command="{Binding SelectRtlPoeProfileCommand}" Margin="5,0,0,0"/>
+        </StackPanel>
+    </Grid>
 </UserControl>

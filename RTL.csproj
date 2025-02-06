@@ -9,13 +9,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Resources\Images\" />
+    <None Remove="Resources\Images\PlateImages\RTL_SW1.png" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="HandyControl" Version="3.5.1" />
+    <PackageReference Include="HandyControl.Lang.ru" Version="3.5.1" />
+    <PackageReference Include="HandyControls" Version="3.5.3" />
+    <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.5" />
     <PackageReference Include="Stylet" Version="1.3.7" />
     <PackageReference Include="Stylet.Start" Version="1.3.7" />
+    <PackageReference Include="WindowsAPICodePack" Version="8.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\Images\PlateImages\RTL_SW1.png" />
   </ItemGroup>
 
   <ItemGroup>

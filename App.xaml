@@ -11,11 +11,8 @@
             </s:ApplicationLoader.Bootstrapper>
 
             <s:ApplicationLoader.MergedDictionaries>
-
-
                 <hc:Theme />
-
-
+                <hc:ThemeResources UsingSystemTheme="True" />
 
             </s:ApplicationLoader.MergedDictionaries>
         </s:ApplicationLoader>

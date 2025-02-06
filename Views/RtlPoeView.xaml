@@ -1,0 +1,37 @@
+﻿<UserControl x:Class="RTL.Views.RtlPoeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:hc="https://handyorg.github.io/handycontrol">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="200"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="69"/>
+            <ColumnDefinition Width="531"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Кнопки управления -->
+        <StackPanel Grid.Row="3" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,20,0,10">
+            <Button Width="100" Height="35" Content="Подключиться" Command="{Binding StartTestingCommand}" IsEnabled="{Binding CanStartTesting}"/>
+            <Button Width="100" Height="35" Content="Остановить" Margin="20,0,0,0" Command="{Binding StopHardCommand}" IsEnabled="{Binding CanStopHard}"/>
+        </StackPanel>
+
+
+
+
+
+        <!-- Логи внизу -->
+        <ListBox Grid.Row="3" Grid.ColumnSpan="3" Margin="10,10,10,0" ItemsSource="{Binding LogMessages}" Height="180" VerticalAlignment="Top">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Message}" Foreground="{Binding Color}"/>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </Grid>
+</UserControl>

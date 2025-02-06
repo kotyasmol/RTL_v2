@@ -7,7 +7,35 @@ using Stylet;
 
 namespace RTL.ViewModels
 {
-    class RtlPoeViewModel
+    public class RtlPoeViewModel : Screen
     {
+        private int _progress;
+        public int Progress
+        {
+            get => _progress;
+            set => SetAndNotify(ref _progress, value);
+        }
+
+        private BindableCollection<string> _logs;
+        public BindableCollection<string> Logs
+        {
+            get => _logs;
+            set => SetAndNotify(ref _logs, value);
+        }
+
+        private string _register52V;
+        public string Register52V
+        {
+            get => _register52V;
+            set => SetAndNotify(ref _register52V, value);
+        }
+
+        // Повторить для остальных регистров
+
+        public RtlPoeViewModel()
+        {
+            Logs = new BindableCollection<string>();
+            // Инициализация регистров
+        }
     }
 }

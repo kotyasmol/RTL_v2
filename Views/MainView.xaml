@@ -4,7 +4,7 @@
            xmlns:hc="https://handyorg.github.io/handycontrol"
            xmlns:local="clr-namespace:RTL.Views"
            xmlns:s="https://github.com/canton7/Stylet"
-           Title="MainView"
+           Title="REALTEK STAND"
            Width="1100"
            Height="720"
            MinWidth="1100"
@@ -22,6 +22,7 @@
         <!-- SideMenu -->
         <hc:SideMenu Grid.Column="0" Width="200">
             <hc:SideMenuItem Header="RTL-SW" Command="{s:Action NavigateToRtlSw}"/>
+            <hc:SideMenuItem Header="RTL-POE" Command="{s:Action NavigateToRtlPoe}"/>
             <hc:SideMenuItem Header="Настройки" Command="{s:Action NavigateToSettings}"/>
         </hc:SideMenu>
 

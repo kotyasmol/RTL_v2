@@ -4,46 +4,29 @@
              xmlns:hc="https://handyorg.github.io/handycontrol">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="50"/>
             <RowDefinition Height="Auto"/>
+            <!-- Высота изображения -->
+            <RowDefinition Height="Auto"/>
+            <!-- Высота кнопок -->
             <RowDefinition Height="*"/>
+            <!-- Пространство для лога -->
             <RowDefinition Height="200"/>
+            <!-- Дополнительная строка для лога -->
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="69"/>
-            <ColumnDefinition Width="531"/>
             <ColumnDefinition Width="*"/>
+            <!-- Левый столбец -->
+            <ColumnDefinition Width="*"/>
+            <!-- Правый столбец -->
+            <ColumnDefinition Width="*"/>
+            <!-- Дополнительный столбец -->
         </Grid.ColumnDefinitions>
 
-        <!-- Горизонтальное меню -->
+        <!-- Изображение с отступом слева -->
+        <Image Grid.Row="0" Grid.Column="0" Source="/RTL;component/Resources/Images/PlateImages/RTL_SW1.png" Width="500" Height="500" Grid.ColumnSpan="2" Margin="20,0,0,0"/>
 
-        <!-- Изображение платы -->
-
-
-        <!-- Профиль тестирования -->
-        <StackPanel Grid.Row="1" Grid.Column="2" Margin="10,0,10,0" VerticalAlignment="Center">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Профиль:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <TextBox Text="{Binding TestProfilePath}" Width="212" IsReadOnly="True" Margin="0,0,10,0"/>
-                <Button Content="Выбрать" Command="{Binding SelectTestProfileCommand}" Width="80"/>
-            </StackPanel>
-        </StackPanel>
-
-        <!-- Логи -->
-        <StackPanel Grid.Row="2" Grid.Column="2" Margin="10,0,10,0" VerticalAlignment="Center">
-            <TextBlock Text="Логи:" VerticalAlignment="Center" Margin="0,0,34,0"/>
-            <TextBox Text="{Binding LogFolderPath}" Width="212" IsReadOnly="True" Margin="0,0,10,0"/>
-            <Button Content="Выбрать" Command="{Binding SelectLogFolderCommand}" Width="80"/>
-        </StackPanel>
-
-        <!-- Кнопки управления -->
-        <StackPanel Grid.Row="3" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,20,0,10">
-            <Button Width="100" Height="35" Content="Подключиться" Command="{Binding StartTestingCommand}" IsEnabled="{Binding CanStartTesting}"/>
-            <Button Width="100" Height="35" Content="Остановить" Margin="20,0,0,0" Command="{Binding StopHardCommand}" IsEnabled="{Binding CanStopHard}"/>
-        </StackPanel>
-
-        <!-- Логи внизу -->
-        <ListBox Grid.Row="3" Grid.ColumnSpan="3" Margin="10,10,10,10" ItemsSource="{Binding LogMessages}">
+        <!-- Логи на левой половине экрана с одинаковыми отступами -->
+        <ListBox Grid.Row="3" Grid.Column="0" Margin="20,10,0,10" ItemsSource="{Binding LogMessages}">
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <TextBlock Text="{Binding Message}" Foreground="{Binding Color}"/>

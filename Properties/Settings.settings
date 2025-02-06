@@ -5,5 +5,17 @@
     <Setting Name="Theme" Type="System.String" Scope="User">
       <Value Profile="(Default)">Dark</Value>
     </Setting>
+    <Setting Name="LogFolderPath" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ReportFolderPath" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="RtlSwProfilePath" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="RtlPoeProfilePath" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
   </Settings>
 </SettingsFile>

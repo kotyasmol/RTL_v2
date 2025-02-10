@@ -1,9 +1,6 @@
-﻿using Stylet;
+﻿using RTL.Logger;
+using Stylet;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RTL.ViewModels
 {
@@ -16,7 +13,7 @@ namespace RTL.ViewModels
             set => SetAndNotify(ref _progress, value);
         }
 
-        private BindableCollection<string> _logs;
+        private BindableCollection<string> _logs = new();
         public BindableCollection<string> Logs
         {
             get => _logs;
@@ -30,12 +27,32 @@ namespace RTL.ViewModels
             set => SetAndNotify(ref _register52V, value);
         }
 
-        // Повторить для остальных регистров
+        private readonly Loggers _logger;
 
-        public RtlSwViewModel()
+        // 💡 Внедряем логгер через конструктор
+        public RtlSwViewModel(Loggers logger)
         {
-            Logs = new BindableCollection<string>();
-            // Инициализация регистров
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _logger.LogToUser("RtlSwViewModel инициализирован", Loggers.LogLevel.Success);
+            SomeAction();
+        }
+
+        public void SomeAction()
+        {
+            try
+            {
+                _logger.LogToUser("Начало выполнения SomeAction", Loggers.LogLevel.Info);
+
+                // Здесь код действия
+                Progress += 10;
+
+                _logger.LogToUser("SomeAction выполнен успешно", Loggers.LogLevel.Success);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка в SomeAction: {ex.Message}", Loggers.LogLevel.Error);
+            }
         }
     }
 }
+ 

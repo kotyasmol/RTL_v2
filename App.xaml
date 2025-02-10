@@ -13,7 +13,6 @@
             <s:ApplicationLoader.MergedDictionaries>
                 <hc:Theme />
                 <hc:ThemeResources UsingSystemTheme="True" />
-ффф
             </s:ApplicationLoader.MergedDictionaries>
         </s:ApplicationLoader>
     </Application.Resources>

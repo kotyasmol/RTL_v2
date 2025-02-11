@@ -8,6 +8,10 @@ namespace RTL.Models
 {
     public class ReportModel
     {
+        // Информация о стенде
+        public static int StandType { get; set; }
+        public static int StandSerialNumber { get; set; }
+
         // Stage 1 K5 Test
         public static StageK5TestReport Stage1K5 { get; set; } = new StageK5TestReport();
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using RTL.ViewModels;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -23,6 +24,14 @@ namespace RTL.Views
         public RtlSwView()
         {
             InitializeComponent();
+
+            Loaded += (s, e) =>
+            {
+                if (DataContext is RtlSwViewModel vm)
+                {
+                    vm.SetLogListBox(LogListBox);
+                }
+            };
         }
     }
 }

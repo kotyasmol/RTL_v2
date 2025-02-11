@@ -13,6 +13,10 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="10"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
@@ -52,5 +56,14 @@
             <TextBox Text="{Binding RtlPoeProfilePath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
             <Button Content="Выбрать..." Command="{Binding SelectRtlPoeProfileCommand}" Margin="5,0,0,0"/>
         </StackPanel>
+
+        <!-- COM-порт SW -->
+        <TextBlock Grid.Row="10" Grid.Column="0" Text="COM (SW):" FontWeight="Bold" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="10" Grid.Column="2" ItemsSource="{Binding AvailablePorts}" SelectedItem="{Binding SelectedComPort, Mode=TwoWay}" Width="200" Margin="0,0,81,0" HorizontalAlignment="Left"/>
+
+        <!-- COM-порт DUT -->
+        <TextBlock Grid.Row="12" Grid.Column="0" Text="DUT Port:" FontWeight="Bold" VerticalAlignment="Center"/>
+        <ComboBox Grid.Row="12" Grid.Column="2" ItemsSource="{Binding AvailablePorts}" SelectedItem="{Binding SelectedDutPort, Mode=TwoWay}" Width="200" Margin="0,0,81,0" HorizontalAlignment="Left"/>
+
     </Grid>
 </UserControl>

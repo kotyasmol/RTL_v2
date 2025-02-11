@@ -1,14 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace RTL.Models
 {
-    public static class StandRegistersModel
+    public class StandRegistersModel : INotifyPropertyChanged
     {
-
+        private static StandRegistersModel _instance;
+        public static StandRegistersModel Instance => _instance ??= new StandRegistersModel();
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
         // 1. Серийный номер стенда
         public static ushort StandSerialNumber { get; set; } // 0
 
@@ -23,7 +31,14 @@ namespace RTL.Models
         public static ushort Boot0Out { get; set; } // 8. BOOT0 OUT
 
         // 10-18. Показатели напряжений
-        public static ushort V52 { get; set; } // 9. 52V (62798)
+        //public static ushort V52 { get; set; } // 9. 52V (62798)
+        private ushort _v52;
+        public ushort V52
+        {
+            get => _v52;
+            set { _v52 = value; OnPropertyChanged(); }
+        }
+
         public static ushort V55 { get; set; } // 10. 55V (62800)
         public static ushort VOut { get; set; } // 11. VOUT (62798)
         public static ushort Ref2048 { get; set; } // 12. REF2048 (8058)

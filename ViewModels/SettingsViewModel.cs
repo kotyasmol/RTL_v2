@@ -7,6 +7,10 @@ using System.Windows;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using Microsoft.Win32; // Для выбора файлов
 using RTL.Commands;
+using RTL.Logger;
+using Serilog.Core;
+using System.Collections.ObjectModel;
+using System.IO.Ports;
 
 namespace RTL.ViewModels
 {
@@ -80,6 +84,38 @@ namespace RTL.ViewModels
                 }
             }
         }
+        private ObservableCollection<string> _availablePorts = new();
+        public ObservableCollection<string> AvailablePorts
+        {
+            get => _availablePorts;
+            set => SetAndNotify(ref _availablePorts, value);
+        }
+
+        private string _selectedComPort;
+        public string SelectedComPort
+        {
+            get => _selectedComPort;
+            set
+            {
+                SetAndNotify(ref _selectedComPort, value);
+                Properties.Settings.Default.ComSW = value;
+                Properties.Settings.Default.Save();
+
+            }
+        }
+        private string _selectedDutPort;
+        public string SelectedDutPort
+        {
+            get => _selectedDutPort;
+            set
+            {
+                SetAndNotify(ref _selectedDutPort, value);
+                Properties.Settings.Default.DutSW = value;
+                Properties.Settings.Default.Save();
+                //_logger.LogToUser($"DUT Port изменён на {value}", Loggers.LogLevel.Info);
+            }
+        }
+
 
         public List<string> Themes { get; set; } = new List<string> { "Светлая", "Темная" };
 
@@ -112,6 +148,10 @@ namespace RTL.ViewModels
             SelectReportFolderCommand = new RelayCommand(SelectReportFolder);
             SelectRtlSwProfileCommand = new RelayCommand(SelectRtlSwProfile);
             SelectRtlPoeProfileCommand = new RelayCommand(SelectRtlPoeProfile);
+
+            LoadAvailablePorts();
+            SelectedComPort = Properties.Settings.Default.ComSW;
+            SelectedDutPort = Properties.Settings.Default.DutSW;
         }
 
         private void ApplyTheme(string theme)
@@ -165,6 +205,10 @@ namespace RTL.ViewModels
             {
                 RtlPoeProfilePath = dialog.FileName;
             }
+        }
+        public void LoadAvailablePorts()
+        {
+            AvailablePorts = new ObservableCollection<string>(SerialPort.GetPortNames().ToList());
         }
     }
 }

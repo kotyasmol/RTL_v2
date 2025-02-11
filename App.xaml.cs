@@ -1,7 +1,7 @@
 ﻿using RTL.Logger;
 using System;
 using System.Windows;
-using RTL.Properties; // Добавляем namespace
+using RTL.Properties; // Подключаем настройки
 
 namespace RTL
 {
@@ -15,23 +15,16 @@ namespace RTL
 
             try
             {
-                // Получаем путь к логам из настроек
+                // Получаем путь к логам из настроек или устанавливаем путь по умолчанию
                 string logDirectory = Settings.Default.LogFolderPath;
-
                 if (string.IsNullOrWhiteSpace(logDirectory))
                 {
                     logDirectory = "C:/Logs"; // Значение по умолчанию
                 }
 
-                // Создаём логгер
-                var logger = new Loggers(logDirectory);
-                logger.Log("Приложение запущено", Loggers.LogLevel.Success);
-
-                // Запускаем Bootstrapper
+                // Запускаем Bootstrapper и передаём путь к логам
                 _bootstrapper = new Bootstrapper();
 
-
-                logger.Log("Bootstrapper успешно запущен", Loggers.LogLevel.Success);
             }
             catch (Exception ex)
             {

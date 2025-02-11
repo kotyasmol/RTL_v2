@@ -9,6 +9,7 @@
             <s:ApplicationLoader.Bootstrapper>
                 <local:Bootstrapper/>
             </s:ApplicationLoader.Bootstrapper>
+            
 
             <s:ApplicationLoader.MergedDictionaries>
                 <hc:Theme />

@@ -82,5 +82,29 @@ namespace RTL.Properties {
                 this["RtlPoeProfilePath"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ComSW {
+            get {
+                return ((string)(this["ComSW"]));
+            }
+            set {
+                this["ComSW"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string DutSW {
+            get {
+                return ((string)(this["DutSW"]));
+            }
+            set {
+                this["DutSW"] = value;
+            }
+        }
     }
 }

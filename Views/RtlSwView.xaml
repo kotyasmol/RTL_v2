@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:hc="https://handyorg.github.io/handycontrol"
              xmlns:local="clr-namespace:RTL.Converters">
-
+    
 
     <UserControl.Resources>
         <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
@@ -177,14 +177,14 @@
         <StackPanel Grid.Column="1" Margin="10">
             <!-- Border с кнопками управления -->
             <Border BorderBrush="{Binding IsDarkTheme, Converter={StaticResource BoolToColorConverter}}" 
-                    BorderThickness="2" CornerRadius="12" Padding="10" Margin="10,0,10,10">
-                <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    BorderThickness="2" CornerRadius="10" Padding="10" Margin="0,0,10,10">
+                <StackPanel Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Center">
 
                     <!-- Кнопка подключения с ProgressButton -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
-                        <Button Width="120" Height="30" 
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="-5,5" HorizontalAlignment="Left">
+                        <Button Width="150" Height="30" 
                                 Command="{Binding ConnectCommand}" 
-                                ToolTip="Подключение"
+                                ToolTip="Установка / прерывание связи со стендом"
                                 FontSize="12" FontWeight="Bold"
                                 Background="{Binding IsStandConnected, Converter={StaticResource BoolToColorConverter}}">
                             <TextBlock Text="{Binding IsStandConnected, Converter={StaticResource BoolToTextConverter}}"  
@@ -306,8 +306,9 @@
                             <TextBlock Text="{Binding StandRegisters.V52}" 
                        FontSize="22" FontWeight="Black" 
                        HorizontalAlignment="Center" Foreground="White"/>
-                            <TextBlock Text="{Binding TestConfig.V52Range}" 
-                       FontSize="12" Foreground="White"/>
+                            <TextBlock Text="{Binding TestConfig.K5_52V_Min}" 
+           FontSize="12" Foreground="White"/>
+
                         </StackPanel>
                     </Grid>
                 </Border>

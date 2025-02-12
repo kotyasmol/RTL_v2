@@ -347,7 +347,18 @@ namespace RTL.ViewModels
         }
 
         public RelayCommand LoadTestProfileCommand { get; }
-        public ProfileTestModel TestConfig { get; private set; }
+        private ProfileTestModel _testConfig;
+        public ProfileTestModel TestConfig
+        {
+            get => _testConfig;
+            private set
+            {
+                _testConfig = value;
+                OnPropertyChanged(); // ✅ Уведомляем WPF, что TestConfig изменился
+            }
+        }
+
+
         private async Task<bool> TryLoadTestProfileAsync()
         {
             try
@@ -357,15 +368,16 @@ namespace RTL.ViewModels
                 {
                     string json = await File.ReadAllTextAsync(testProfilePath);
                     TestConfig = JsonConvert.DeserializeObject<ProfileTestModel>(json) ?? new ProfileTestModel();
-                    IsTestProfileLoaded = true; // ✅ Профиль успешно загружен
+                    OnPropertyChanged(nameof(TestConfig)); // ✅ Уведомляем View
+                    IsTestProfileLoaded = true;
                     _logger.LogToUser($"Файл тестирования загружен: {testProfilePath}", LogLevel.Success);
-                    _logger.LogToUser($"Модель платы: {TestConfig.ModelName}, Тип платы: {TestConfig.ModelType}", LogLevel.Info);
                     return true;
                 }
                 else
                 {
                     TestConfig = new ProfileTestModel();
-                    IsTestProfileLoaded = false; // ❌ Профиль не загружен
+                    OnPropertyChanged(nameof(TestConfig)); // ✅ Уведомляем View
+                    IsTestProfileLoaded = false;
                     _logger.LogToUser($"Файл тестирования {testProfilePath} не найден.", LogLevel.Warning);
                     return false;
                 }
@@ -373,6 +385,7 @@ namespace RTL.ViewModels
             catch (JsonException ex)
             {
                 TestConfig = new ProfileTestModel();
+                OnPropertyChanged(nameof(TestConfig)); // ✅ Уведомляем View
                 IsTestProfileLoaded = false;
                 _logger.LogToUser($"Ошибка обработки JSON: {ex.Message}", LogLevel.Error);
                 return false;
@@ -380,11 +393,13 @@ namespace RTL.ViewModels
             catch (Exception ex)
             {
                 TestConfig = new ProfileTestModel();
+                OnPropertyChanged(nameof(TestConfig)); // ✅ Уведомляем View
                 IsTestProfileLoaded = false;
                 _logger.LogToUser($"Ошибка при загрузке профиля тестирования: {ex.Message}", LogLevel.Error);
                 return false;
             }
         }
+
 
         #endregion Профиль тестирования
 

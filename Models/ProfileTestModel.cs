@@ -1,13 +1,15 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace RTL.Models
 {
-    public class ProfileTestModel
+    public class ProfileTestModel : INotifyPropertyChanged
     {
         [JsonProperty("model_name")]
         public string ModelName { get; set; }
@@ -29,8 +31,20 @@ namespace RTL.Models
         [JsonProperty("k5_test_delay")]
         public int K5TestDelay { get; set; }
 
+        private ushort _k5_52V_Min;
+
         [JsonProperty("k5_52V_min")]
-        public ushort K5_52V_Min { get; set; }
+        public ushort K5_52V_Min
+        {
+            get => _k5_52V_Min;
+            set
+            {
+                _k5_52V_Min = value;
+                OnPropertyChanged();
+            }
+        }
+
+
 
         [JsonProperty("k5_52V_max")]
         public ushort K5_52V_Max { get; set; }
@@ -195,5 +209,14 @@ namespace RTL.Models
 
         [JsonProperty("label_size")]
         public int LabelSize { get; set; }
+
+
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
     }
 }

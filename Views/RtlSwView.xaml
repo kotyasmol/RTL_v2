@@ -7,10 +7,15 @@
 
     <UserControl.Resources>
         <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <local:BoolToInverseBoolConverter x:Key="BoolToInverseBoolConverter"/>
+        <local:ThemeToLogBackgroundConverter x:Key="ThemeToLogBackgroundConverter"/>
+        <local:BoolToTextColorConverter x:Key="BoolToTextColorConverter"/>
+        <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
         <Style x:Key="RoundButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="50"/>
             <Setter Property="Height" Value="50"/>
-            
+
             <Setter Property="Padding" Value="0"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Background" Value="#B5E61D"/>
@@ -169,12 +174,118 @@
 
 
         <!-- Правая колонка -->
+        <StackPanel Grid.Column="1" Margin="10">
+            <!-- Border с кнопками управления -->
+            <Border BorderBrush="{Binding IsDarkTheme, Converter={StaticResource BoolToColorConverter}}" 
+                    BorderThickness="2" CornerRadius="12" Padding="10" Margin="10,0,10,10">
+                <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
 
+                    <!-- Кнопка подключения с ProgressButton -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
+                        <Button Width="120" Height="30" 
+                                Command="{Binding ConnectCommand}" 
+                                ToolTip="Подключение"
+                                FontSize="12" FontWeight="Bold"
+                                Background="{Binding IsStandConnected, Converter={StaticResource BoolToColorConverter}}">
+                            <TextBlock Text="{Binding IsStandConnected, Converter={StaticResource BoolToTextConverter}}"  
+                                       VerticalAlignment="Center" HorizontalAlignment="Center" 
+                                       Margin="0,0,0,0" Foreground="White"/>
+                        </Button>
+                    </StackPanel>
 
-        <StackPanel Grid.Column="1" HorizontalAlignment="Stretch" Margin="5,150,0,0">
+                    <!-- Кнопка Профиль тестирования -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
+                        <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
+                                Command="{Binding LoadTestProfileCommand}" ToolTip="Загрузка профиля тестирования">
+                            <Button.Template>
+                                <ControlTemplate TargetType="{x:Type Button}">
+                                    <Border Width="16" Height="16" CornerRadius="8"
+                                            Background="{Binding IsTestProfileLoaded, Converter={StaticResource BoolToColorConverter}}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <TextBlock Text="Профиль" VerticalAlignment="Center" Margin="10,0,0,0"
+                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
+                                   FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
 
-           
+                    <!-- Кнопка Сервер -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
+                        <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
+                                Command="{Binding ConnectToServerCommand}" ToolTip="Подключение к серверу">
+                            <Button.Template>
+                                <ControlTemplate TargetType="{x:Type Button}">
+                                    <Border Width="16" Height="16" CornerRadius="8"
+                                            Background="{Binding IsServerConnected, Converter={StaticResource BoolToColorConverter}}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <TextBlock Text="Сервер" VerticalAlignment="Center" Margin="10,0,0,0"
+                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
+                                   FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
 
+                    <!-- Кнопка Modbus -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
+                        <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
+                                Command="{Binding ToggleModbusConnectionCommand}" ToolTip="Подключение Modbus">
+                            <Button.Template>
+                                <ControlTemplate TargetType="{x:Type Button}">
+                                    <Border Width="16" Height="16" CornerRadius="8"
+                                            Background="{Binding IsModbusConnected, Converter={StaticResource BoolToColorConverter}}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <TextBlock Text="Modbus" VerticalAlignment="Center" Margin="10,0,0,0"
+                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
+                                   FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
+
+                    <!-- Кнопка DUT -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
+                        <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
+                                Command="{Binding ToggleDutConnectionCommand}" ToolTip="Подключение DUT">
+                            <Button.Template>
+                                <ControlTemplate TargetType="{x:Type Button}">
+                                    <Border Width="16" Height="16" CornerRadius="8"
+                                            Background="{Binding IsDutConnected, Converter={StaticResource BoolToColorConverter}}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <TextBlock Text="DUT" VerticalAlignment="Center" Margin="10,0,0,0"
+                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
+                                   FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
+
+                    <!-- Кнопка Run -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
+                        <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
+                                Command="{Binding RunTestCommand}" ToolTip="Запуск теста">
+                            <Button.Template>
+                                <ControlTemplate TargetType="{x:Type Button}">
+                                    <Border Width="16" Height="16" CornerRadius="8" Background="Green">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <TextBlock Text="Run" VerticalAlignment="Center" Margin="10,0,0,0"
+                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
+                                   FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
+
+                </StackPanel>
+            </Border>
+
+            <!-- WrapPanel с элементами -->
             <WrapPanel Orientation="Horizontal">
                 <!-- 52V 2309 -->
                 <!-- 3. Привязка в XAML -->
@@ -394,85 +505,7 @@
 
             </WrapPanel>
 
-
-
-
-            <Grid>
-                <StackPanel Orientation="Vertical" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="10">
-                    <!-- Кнопка Modbus -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
-                        <Button Width="20" Height="20" Style="{StaticResource RoundButtonStyle}" 
-         Command="{Binding ToggleModbusConnectionCommand}" ToolTip="Подключение Modbus">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border Width="20" Height="20" CornerRadius="25" 
-                     Background="{Binding IsModbusConnected, Converter={StaticResource BoolToColorConverter}}">
-                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                        <TextBlock Text="Modbus" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="White" FontSize="16"/>
-                    </StackPanel>
-
-                    <!-- Кнопка DUT -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
-                        <Button Width="20" Height="20" Style="{StaticResource RoundButtonStyle}" 
-         Command="{Binding ToggleDutConnectionCommand}" ToolTip="Подключение DUT">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border Width="20" Height="20" CornerRadius="25" 
-                     Background="{Binding IsDutConnected, Converter={StaticResource BoolToColorConverter}}">
-                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                        <TextBlock Text="DUT" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="White" FontSize="16"/>
-                    </StackPanel>
-
-                    <!-- Кнопка Run -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
-                        <Button Width="20" Height="20" Style="{StaticResource RoundButtonStyle}" 
-         Command="{Binding RunTestCommand}" ToolTip="Запуск теста">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border Width="20" Height="20" CornerRadius="25" Background="Green">
-                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                        <TextBlock Text="Run" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="White" FontSize="16"/>
-                    </StackPanel>
-
-                    <!-- Кнопка Сервер -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
-                        <Button Width="20" Height="20" Style="{StaticResource RoundButtonStyle}" 
-            Command="{Binding ConnectToServerCommand}" ToolTip="Подключение к серверу">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border Width="20" Height="20" CornerRadius="25"
-                        Background="{Binding IsServerConnected, Converter={StaticResource BoolToColorConverter}}">
-                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                        <TextBlock Text="Сервер" VerticalAlignment="Center" Margin="10,0,0,0"
-               Foreground="White" FontSize="16"/>
-                    </StackPanel>
-
-                </StackPanel>
-            </Grid>
-
-
-
         </StackPanel>
-
-
-
-
 
 
     </Grid>

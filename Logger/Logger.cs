@@ -210,28 +210,37 @@ namespace RTL.Logger
         /// </summary>
         private bool IsDarkTheme()
         {
-            var theme = ThemeManager.Current.ActualApplicationTheme;
-            return theme == ApplicationTheme.Dark;
+            return Application.Current.Dispatcher.Invoke(() =>
+            {
+                var theme = ThemeManager.Current.ActualApplicationTheme;
+                return theme == ApplicationTheme.Dark;
+            });
         }
+
 
         /// <summary>
         /// Определяет цвет логов для пользовательского интерфейса.
         /// </summary>
         private SolidColorBrush GetLogColor(LogLevel level)
         {
-            bool isDarkTheme = IsDarkTheme();
-
-            return level switch
+            return Application.Current.Dispatcher.Invoke(() =>
             {
-                LogLevel.Error => isDarkTheme ? new SolidColorBrush(Colors.Tomato) : new SolidColorBrush(Colors.DarkRed),
-                LogLevel.Info => isDarkTheme ? new SolidColorBrush(Colors.White) : new SolidColorBrush(Colors.Black),
-                LogLevel.Warning => isDarkTheme ? new SolidColorBrush(Colors.Yellow) : new SolidColorBrush(Colors.Orange),
-                LogLevel.Debug => isDarkTheme ? new SolidColorBrush(Colors.Gray) : new SolidColorBrush(Colors.DarkGray),
-                LogLevel.Critical => isDarkTheme ? new SolidColorBrush(Colors.DarkRed) : new SolidColorBrush(Colors.Red),
-                LogLevel.Success => isDarkTheme ? new SolidColorBrush(Colors.GreenYellow) : new SolidColorBrush(Colors.Green),
-                _ => isDarkTheme ? new SolidColorBrush(Colors.White) : new SolidColorBrush(Colors.Black),
-            };
+                bool isDarkTheme = IsDarkTheme();
+
+                return level switch
+                {
+                    LogLevel.Error => new SolidColorBrush(isDarkTheme ? Colors.Tomato : Colors.DarkRed),
+                    LogLevel.Info => new SolidColorBrush(isDarkTheme ? Colors.White : Colors.Black),
+                    LogLevel.Warning => new SolidColorBrush(isDarkTheme ? Colors.Yellow : Colors.DarkOrange), // Темнее для читабельности
+                    LogLevel.Debug => new SolidColorBrush(isDarkTheme ? Colors.Gray : Colors.Blue), // Голубой в светлой теме
+                    LogLevel.Critical => new SolidColorBrush(isDarkTheme ? Colors.DarkRed : Colors.Red),
+                    LogLevel.Success => new SolidColorBrush(isDarkTheme ? Colors.GreenYellow : Colors.DarkGreen), // Тёмно-зелёный в светлой теме
+                    _ => new SolidColorBrush(isDarkTheme ? Colors.White : Colors.Black),
+                };
+            });
         }
+
+
 
         public enum LogLevel
         {

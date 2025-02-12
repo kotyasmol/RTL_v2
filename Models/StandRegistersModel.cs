@@ -31,13 +31,7 @@ namespace RTL.Models
         public static ushort Boot0Out { get; set; } // 8. BOOT0 OUT
 
         // 10-18. Показатели напряжений
-        //public static ushort V52 { get; set; } // 9. 52V (62798)
-        private ushort _v52;
-        public ushort V52
-        {
-            get => _v52;
-            set { _v52 = value; OnPropertyChanged(); }
-        }
+        public static ushort V52 { get; set; } // 9. 52V (62798)
 
         public static ushort V55 { get; set; } // 10. 55V (62800)
         public static ushort VOut { get; set; } // 11. VOUT (62798)

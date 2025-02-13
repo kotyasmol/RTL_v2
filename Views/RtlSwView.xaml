@@ -306,7 +306,7 @@
                             <TextBlock Text="{Binding StandRegisters.V52}" 
                        FontSize="22" FontWeight="Black" 
                        HorizontalAlignment="Center" Foreground="White"/>
-                            <TextBlock Text="{Binding TestConfig.K5_52V_Min}" 
+                            <TextBlock  Text="{Binding TestConfig.K5_52V_Min, UpdateSourceTrigger=PropertyChanged}" 
            FontSize="12" Foreground="White"/>
 
                         </StackPanel>

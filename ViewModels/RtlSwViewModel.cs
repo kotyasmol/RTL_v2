@@ -347,17 +347,20 @@ namespace RTL.ViewModels
         }
 
         public RelayCommand LoadTestProfileCommand { get; }
+
+
         private ProfileTestModel _testConfig;
+
         public ProfileTestModel TestConfig
         {
             get => _testConfig;
-            private set
-            {
-                _testConfig = value;
-                OnPropertyChanged(); // ✅ Уведомляем WPF, что TestConfig изменился
-            }
+            set => SetAndNotify(ref _testConfig, value);
         }
-
+        private void ProfileTest_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            // Логирование изменений
+            Console.WriteLine($"Свойство {e.PropertyName} изменилось в ProfileTestModel");
+        }
 
         private async Task<bool> TryLoadTestProfileAsync()
         {
@@ -419,6 +422,19 @@ namespace RTL.ViewModels
             ToggleModbusConnectionCommand = new RelayCommand(async () => await ToggleModbusConnection(), CanExecuteCommand);
             ConnectToServerCommand = new RelayCommand(async () => await TryConnectToServerAsync(), CanExecuteCommand);
             LoadTestProfileCommand = new RelayCommand(async () => await TryLoadTestProfileAsync(), CanExecuteCommand);
+
+            if (TestConfig != null)
+            {
+                TestConfig.PropertyChanged += ProfileTest_PropertyChanged;
+                /*TestConfig.K5_52V_MinChanged += (s, e) =>
+                {
+                    Console.WriteLine("K5_52V_Min изменился! Запускаем дополнительную логику...");
+                };*/ // возможно можно уйти от этого 
+            }
+            else
+            {
+                _logger.Log("Ошибка: TestConfig не инициализирован!", Loggers.LogLevel.Error);
+            }
 
             // Кнопка "Подключиться к стенду"
             ConnectCommand = new AsyncRelayCommand(ToggleConnectionAsync);

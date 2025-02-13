@@ -6,6 +6,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using Stylet;
+
 
 namespace RTL.Models
 {
@@ -31,19 +33,39 @@ namespace RTL.Models
         [JsonProperty("k5_test_delay")]
         public int K5TestDelay { get; set; }
 
+
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+            if (propertyName == nameof(K5_52V_Min))
+            {
+                K5_52V_MinChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public event EventHandler K5_52V_MinChanged;
+
         private ushort _k5_52V_Min;
 
         [JsonProperty("k5_52V_min")]
         public ushort K5_52V_Min
         {
             get => _k5_52V_Min;
-            set
-            {
-                _k5_52V_Min = value;
-                OnPropertyChanged();
-            }
+            set => SetAndNotify(ref _k5_52V_Min, value);
         }
 
+        private bool SetAndNotify<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+                return false;
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
 
 
         [JsonProperty("k5_52V_max")]
@@ -212,11 +234,6 @@ namespace RTL.Models
 
 
 
-        public event PropertyChangedEventHandler PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
 
     }
 }

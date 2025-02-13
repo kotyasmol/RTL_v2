@@ -418,18 +418,117 @@ namespace RTL.ViewModels
             {
                 try
                 {
-                    // Читаем регистры Modbus
-                    var registers = await _modbusMaster.ReadHoldingRegistersAsync(1, 2309, 5);
-
+                    // Читаем регистры Modbus (85 регистров, начиная с 2300)
+                    var registers = await _modbusMaster.ReadHoldingRegistersAsync(1, 2300, 85);
+                    #region обновление значений
                     // Обновляем значения в модели StandRegistersModel
-                    StandRegisters.V52 = registers[0];
-                    StandRegisters.V55 = registers[1];
-                    StandRegisters.VOut = registers[2];
-                    StandRegisters.Ref2048 = registers[3];
-                    StandRegisters.V12 = registers[4];
+                    StandRegisters.V52Out = registers[1];
+                    StandRegisters.V55Out = registers[2];
+                    StandRegisters.Sensor1Out = registers[3];
+                    StandRegisters.Sensor2Out = registers[4];
+                    StandRegisters.TamperOut = registers[5];
+                    StandRegisters.RelayIn = registers[6];
+                    StandRegisters.ResetOut = registers[7];
+                    StandRegisters.BootOut = registers[8];
+                    // --------------------------------------- друзья в гуи 
+                    StandRegisters.V52 = registers[9];
+                    StandRegisters.V55 = registers[10];
+                    StandRegisters.VOut = registers[11];
+                    StandRegisters.Ref2048 = registers[12];
+                    StandRegisters.V12 = registers[13];
+                    StandRegisters.V3_3 = registers[14];
+                    StandRegisters.V1_5 = registers[15];
+                    StandRegisters.V1_1 = registers[16];
+                    StandRegisters.CR2032 = registers[17];
+                    StandRegisters.CR2032_CPU = registers[18];
+                    StandRegisters.Status_Tamper = registers[19];
+                    StandRegisters.Status_Tamper_Led = registers[20];
+                    // --------------------------------------- друзья в гуи 
+                    // --------------------------------------- Кнопки и статусы тестов
+                    StandRegisters.RunBtn = registers[21]; //------------------------------------------------------------------- КНОПКА RUN
+                    StandRegisters.NextBtn = registers[22];
+                    StandRegisters.K5Stage1Start = registers[23];
+                    StandRegisters.K5Stage1Status = registers[24];
+                    StandRegisters.K5Stage2Start = registers[25];
+                    StandRegisters.K5Stage2Status = registers[26];
+                    StandRegisters.K5Stage3Start = registers[27];
+                    StandRegisters.K5Stage3Status = registers[28];
+                    StandRegisters.K5TestDelay = registers[29];
 
-                    // Логируем полученные данные
-                    _logger.LogToUser($"V52: {StandRegisters.V52}, V55: {StandRegisters.V55}, VOut: {StandRegisters.VOut}, REF2048: {StandRegisters.Ref2048}, V12: {StandRegisters.V12}", Loggers.LogLevel.Debug);
+                    StandRegisters.VCCStart = registers[30];
+                    StandRegisters.VCCTestStatus = registers[31];
+                    StandRegisters.VCCTestDelay = registers[32];
+
+                    // --------------------------------------- Минимальные, максимальные и калибровочные значения
+                    StandRegisters.V52Min = registers[33];
+                    StandRegisters.V52Max = registers[34];
+                    StandRegisters.V52Calibr = registers[35];
+
+                    StandRegisters.V55Min = registers[36];
+                    StandRegisters.V55Max = registers[37];
+                    StandRegisters.V55Calibr = registers[38];
+
+                    StandRegisters.VOutVmainMin = registers[39];
+                    StandRegisters.VOutVmainMax = registers[40];
+                    StandRegisters.VOutVresMin = registers[41];
+                    StandRegisters.VOutVresMax = registers[42];
+                    StandRegisters.VOutCalibr = registers[43];
+
+                    StandRegisters.Ref2048Min = registers[44];
+                    StandRegisters.Ref2048Max = registers[45];
+                    StandRegisters.Ref2048Calibr = registers[46];
+
+                    StandRegisters.V12Min = registers[47];
+                    StandRegisters.V12Max = registers[48];
+                    StandRegisters.V12Calibr = registers[49];
+
+                    StandRegisters.V3_3Min = registers[50];
+                    StandRegisters.V3_3Max = registers[51];
+                    StandRegisters.V3_3Calibr = registers[52];
+
+                    StandRegisters.V1_5Min = registers[53];
+                    StandRegisters.V1_5Max = registers[54];
+                    StandRegisters.V1_5Calibr = registers[55];
+
+                    StandRegisters.V1_1Min = registers[56];
+                    StandRegisters.V1_1Max = registers[57];
+                    StandRegisters.V1_1Calibr = registers[58];
+
+                    StandRegisters.CR2032Min = registers[59];
+                    StandRegisters.CR2032Max = registers[60];
+                    StandRegisters.CR2032Calibr = registers[61];
+
+                    StandRegisters.CR2032_CPUMin = registers[62];
+                    StandRegisters.CR2032_CPUMax = registers[63];
+                    StandRegisters.CR2032_CPUCalibr = registers[64];
+
+                    StandRegisters.TamperStatusMin = registers[65];
+                    StandRegisters.TamperStatusMax = registers[66];
+                    StandRegisters.TamperStatusCalibr = registers[67];
+
+                    StandRegisters.TamperLedMin = registers[68];
+                    StandRegisters.TamperLedMax = registers[69];
+                    StandRegisters.TamperLedCalibr = registers[70];
+
+                    // --------------------------------------- Отчёты
+                    StandRegisters.V52Report = registers[71];
+                    StandRegisters.V55Report = registers[72];
+                    StandRegisters.VOutReport = registers[73];
+                    StandRegisters.Ref2048Report = registers[74];
+                    StandRegisters.V12Report = registers[75];
+                    StandRegisters.V3_3Report = registers[76];
+                    StandRegisters.V1_5Report = registers[77];
+                    StandRegisters.V1_1Report = registers[78];
+                    StandRegisters.CR2032Report = registers[79];
+                    StandRegisters.CR2032_CPUReport = registers[80];
+                    StandRegisters.TamperLedReport = registers[81];
+                    StandRegisters.TamperReport = registers[82];
+
+                    // --------------------------------------- Прочие регистры
+                    StandRegisters.RS485Enable = registers[83];
+                    StandRegisters.RS485RxOK = registers[84];
+                    #endregion обновление значений
+
                 }
                 catch (Exception ex)
                 {

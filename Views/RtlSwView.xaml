@@ -358,6 +358,8 @@
 
 
                 <!-- VOUT 2311 -->
+
+
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -367,25 +369,25 @@
 
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="VOUT" FontWeight="Black" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="VOUT" FontWeight="Black" Foreground="White"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
 
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <!-- Текущее значение напряжения VOUT -->
-                            <TextBlock Text="{Binding StandRegisters.VOUT}" 
-                       FontSize="22" FontWeight="Black" 
-                       HorizontalAlignment="Center" Foreground="White"/>
+                            <!-- Значение StandRegisters.V55 -->
+                            <TextBlock Text="{Binding StandRegisters.VOut}" 
+        FontSize="22" FontWeight="Black" 
+        HorizontalAlignment="Center" Foreground="White"/>
 
-                            <!-- Контейнер для VoutVMainMin - VoutVMainMax -->
+                            <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.VoutVMainMin, UpdateSourceTrigger=PropertyChanged}" 
-                           FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.VoutMin, UpdateSourceTrigger=PropertyChanged}" 
+            FontSize="12" Foreground="White"/>
                                 <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.VoutVMainMax, UpdateSourceTrigger=PropertyChanged}" 
-                           FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.VoutMax, UpdateSourceTrigger=PropertyChanged}" 
+            FontSize="12" Foreground="White"/>
                             </StackPanel>
                         </StackPanel>
                     </Grid>
@@ -393,6 +395,8 @@
 
 
                 <!-- REF 2048 2312 -->
+
+
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -402,25 +406,25 @@
 
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
+                                VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="REF" FontWeight="Black" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
 
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <!-- Текущее значение напряжения REF -->
-                            <TextBlock Text="{Binding StandRegisters.REF}" 
-                       FontSize="22" FontWeight="Black" 
-                       HorizontalAlignment="Center" Foreground="White"/>
+                            <!-- Значение StandRegisters.V55 -->
+                            <TextBlock Text="{Binding StandRegisters.Ref2048}" 
+        FontSize="22" FontWeight="Black" 
+        HorizontalAlignment="Center" Foreground="White"/>
 
-                            <!-- Контейнер для VRefMin - VRefMax -->
+                            <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.VRefMin, UpdateSourceTrigger=PropertyChanged}" 
-                           FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.VrefMin, UpdateSourceTrigger=PropertyChanged}" 
+            FontSize="12" Foreground="White"/>
                                 <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.VRefMax, UpdateSourceTrigger=PropertyChanged}" 
-                           FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.VrefMax, UpdateSourceTrigger=PropertyChanged}" 
+            FontSize="12" Foreground="White"/>
                             </StackPanel>
                         </StackPanel>
                     </Grid>
@@ -428,6 +432,7 @@
 
 
                 <!-- 12V 2313 -->
+
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -437,154 +442,40 @@
 
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
+                                VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="12V" FontWeight="Black" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
 
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <!-- Текущее значение напряжения 12V -->
+                            <!-- Значение StandRegisters.V55 -->
                             <TextBlock Text="{Binding StandRegisters.V12}" 
-                       FontSize="22" FontWeight="Black" 
-                       HorizontalAlignment="Center" Foreground="White"/>
+        FontSize="22" FontWeight="Black" 
+        HorizontalAlignment="Center" Foreground="White"/>
 
-                            <!-- Контейнер для V12_min - V12_max -->
+                            <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.V12_min, UpdateSourceTrigger=PropertyChanged}" 
-                           FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.V12Min, UpdateSourceTrigger=PropertyChanged}" 
+            FontSize="12" Foreground="White"/>
                                 <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.V12_max, UpdateSourceTrigger=PropertyChanged}" 
-                           FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.V12Max, UpdateSourceTrigger=PropertyChanged}" 
+            FontSize="12" Foreground="White"/>
                             </StackPanel>
                         </StackPanel>
                     </Grid>
                 </Border>
+
                 <!-- 3.3V 2314 -->
-                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="3.3V" FontWeight="Black" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding StandRegisters.V3_3Report}" FontSize="22" FontWeight="Black" Foreground="White"/>
-
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.V3_3_min}" FontSize="12" Foreground="White"/>
-                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.V3_3_max}" FontSize="12" Foreground="White"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+               
                 <!-- 1.5V 2315 -->
-                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="1.5V" FontWeight="Black" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding StandRegisters.V1_5Report}" FontSize="22" FontWeight="Black" Foreground="White"/>
-
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.V1_5_min}" FontSize="12" Foreground="White"/>
-                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.V1_5_max}" FontSize="12" Foreground="White"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+              
                 <!-- 1.1V 2316 -->
-                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="1.1V" FontWeight="Black" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding StandRegisters.V1_1Report}" FontSize="22" FontWeight="Black" Foreground="White"/>
-
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.V1_1_min}" FontSize="12" Foreground="White"/>
-                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.V1_1_max}" FontSize="12" Foreground="White"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+              
                 <!-- CR2032 2317 -->
-                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="CR" FontWeight="Black" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding StandRegisters.CR2032Report}" FontSize="22" FontWeight="Black" Foreground="White"/>
-
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.CR2032_min}" FontSize="12" Foreground="White"/>
-                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.CR2032_max}" FontSize="12" Foreground="White"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+              
                 <!-- CR2032_CPU 2317 -->
-                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="CPU" FontWeight="Black" Foreground="White"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding StandRegisters.CR2032_CPUReport}" FontSize="22" FontWeight="Black" Foreground="White"/>
-
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.CR2032_CPU_min}" FontSize="12" Foreground="White"/>
-                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.CR2032_CPU_max}" FontSize="12" Foreground="White"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+               
 
 
 

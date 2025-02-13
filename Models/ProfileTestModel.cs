@@ -8,19 +8,18 @@ using System.Text;
 using System.Threading.Tasks;
 using Stylet;
 
-
 namespace RTL.Models
 {
     public class ProfileTestModel : INotifyPropertyChanged
     {
+        // Основные свойства модели
         [JsonProperty("model_name")]
         public string ModelName { get; set; }
 
         [JsonProperty("model_type")]
         public int ModelType { get; set; }
 
-
-        // 1. K5 Test
+        // 1. Проверка узла K5
         [JsonProperty("1.Проверка узла K5")]
         public bool IsK5TestEnabled { get; set; }
 
@@ -32,108 +31,6 @@ namespace RTL.Models
 
         [JsonProperty("k5_test_delay")]
         public int K5TestDelay { get; set; }
-
-
-
-
-
-
-
-
-        public event PropertyChangedEventHandler PropertyChanged;
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-
-            // Вызов событий при изменении значений
-            switch (propertyName)
-            {
-                case nameof(K5_52V_Min):
-                    K5_52V_MinChanged?.Invoke(this, EventArgs.Empty);
-                    break;
-                case nameof(K5_52V_Max):
-                    K5_52V_MaxChanged?.Invoke(this, EventArgs.Empty);
-                    break;
-                case nameof(K5_55V_Min):
-                    K5_55V_MinChanged?.Invoke(this, EventArgs.Empty);
-                    break;
-                case nameof(K5_55V_Max):
-                    K5_55V_MaxChanged?.Invoke(this, EventArgs.Empty);
-                    break;
-                case nameof(V12_Min):
-                    V12_MinChanged?.Invoke(this, EventArgs.Empty);
-                    break;
-                case nameof(V12_Max):
-                    V12_MaxChanged?.Invoke(this, EventArgs.Empty);
-                    break;
-                case nameof(VoutVMainMin): VoutVMainMinChanged?.Invoke(this, EventArgs.Empty); break;
-                case nameof(VoutVMainMax): VoutVMainMaxChanged?.Invoke(this, EventArgs.Empty); break;
-                case nameof(VoutVResMin): VoutVResMinChanged?.Invoke(this, EventArgs.Empty); break;
-                case nameof(VoutVResMax): VoutVResMaxChanged?.Invoke(this, EventArgs.Empty); break;
-                case nameof(VRefMin): VRefMinChanged?.Invoke(this, EventArgs.Empty); break;
-                case nameof(VRefMax): VRefMaxChanged?.Invoke(this, EventArgs.Empty); break;
-            }
-        }
-
-        private bool SetAndNotify<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
-        {
-            if (EqualityComparer<T>.Default.Equals(field, value))
-                return false;
-
-            field = value;
-            OnPropertyChanged(propertyName);
-            return true;
-        }
-
-        // События для каждого изменяемого свойства
-        public event EventHandler K5_52V_MinChanged;
-        public event EventHandler K5_52V_MaxChanged;
-        public event EventHandler K5_55V_MinChanged;
-        public event EventHandler K5_55V_MaxChanged;
-        public event EventHandler V12_MinChanged;
-        public event EventHandler V12_MaxChanged;
-        public event EventHandler VoutVMainMinChanged;
-        public event EventHandler VoutVMainMaxChanged;
-        public event EventHandler VoutVResMinChanged;
-        public event EventHandler VoutVResMaxChanged;
-        public event EventHandler VRefMinChanged;
-        public event EventHandler VRefMaxChanged;
-
-        public event EventHandler Vcc3V3MinChanged;
-        public event EventHandler Vcc3V3MaxChanged;
-        public event EventHandler Vcc1V5MinChanged;
-        public event EventHandler Vcc1V5MaxChanged;
-        public event EventHandler Vcc1V1MinChanged;
-        public event EventHandler Vcc1V1MaxChanged;
-        public event EventHandler CR2032MinChanged;
-        public event EventHandler CR2032MaxChanged;
-        public event EventHandler CR2032CpuMinChanged;
-        public event EventHandler CR2032CpuMaxChanged;
-
-        // Поля и свойства с уведомлениями
-        private ushort _k5_52V_Min;
-        private ushort _k5_52V_Max;
-        private ushort _k5_55V_Min;
-        private ushort _k5_55V_Max;
-        private ushort _v12_Min;
-        private ushort _v12_Max;
-        private ushort _voutVMainMin;
-        private int _voutVMainMax;
-        private int _voutVResMin;
-        private int _voutVResMax;
-        private ushort _vRefMin;
-        private int _vRefMax;
-        private ushort _vcc3V3Min;
-        private ushort _vcc3V3Max;
-        private ushort _vcc1V5Min;
-        private ushort _vcc1V5Max;
-        private ushort _vcc1V1Min;
-        private ushort _vcc1V1Max;
-        private ushort _cr2032Min;
-        private ushort _cr2032Max;
-        private ushort _cr2032CpuMin;
-        private ushort _cr2032CpuMax;
-
 
         [JsonProperty("k5_52V_min")]
         public ushort K5_52V_Min
@@ -164,67 +61,65 @@ namespace RTL.Models
         }
 
         [JsonProperty("v12_min")]
-        public ushort V12_Min
+        public ushort V12Min
         {
-            get => _v12_Min;
-            set => SetAndNotify(ref _v12_Min, value);
+            get => _v12Min;
+            set => SetAndNotify(ref _v12Min, value);
         }
 
         [JsonProperty("v12_max")]
-        public ushort V12_Max
+        public ushort V12Max
         {
-            get => _v12_Max;
-            set => SetAndNotify(ref _v12_Max, value);
+            get => _v12Max;
+            set => SetAndNotify(ref _v12Max, value);
         }
-
-
 
         [JsonProperty("vout_vmain_min")]
-        public ushort VoutVMainMin
+        public ushort VoutMin
         {
-            get => _voutVMainMin;
-            set => SetAndNotify(ref _voutVMainMin, value);
+            get => _voutMin;
+            set => SetAndNotify(ref _voutMin, value);
         }
-
         [JsonProperty("vout_vmain_max")]
-        public int VoutVMainMax
+        public ushort VoutMax
         {
-            get => _voutVMainMax;
-            set => SetAndNotify(ref _voutVMainMax, value);
+            get => _voutMax;
+            set => SetAndNotify(ref _voutMax, value);
         }
-
         [JsonProperty("vout_vres_min")]
-        public int VoutVResMin
+        public ushort VoutVresMin
         {
-            get => _voutVResMin;
-            set => SetAndNotify(ref _voutVResMin, value);
+            get => _voutVresMin;
+            set => SetAndNotify(ref _voutVresMin, value);
         }
 
         [JsonProperty("vout_vres_max")]
-        public int VoutVResMax
+        public ushort VoutVresMax
         {
-            get => _voutVResMax;
-            set => SetAndNotify(ref _voutVResMax, value);
+            get => _voutVresMax;
+            set => SetAndNotify(ref _voutVresMax, value);
         }
 
         [JsonProperty("vref_min")]
-        public ushort VRefMin
+        public ushort VrefMin
         {
-            get => _vRefMin;
-            set => SetAndNotify(ref _vRefMin, value);
+            get => _vrefMin;
+            set => SetAndNotify(ref _vrefMin, value);
         }
 
         [JsonProperty("vref_max")]
-        public int VRefMax
+        public ushort VrefMax
         {
-            get => _vRefMax;
-            set => SetAndNotify(ref _vRefMax, value);
+            get => _vrefMax;
+            set => SetAndNotify(ref _vrefMax, value);
         }
 
 
 
 
-        // 2. VCC Test
+
+
+        // 2. Проверка VCC
         [JsonProperty("2.Проверка VCC")]
         public bool IsVccTestEnabled { get; set; }
 
@@ -303,10 +198,8 @@ namespace RTL.Models
             get => _cr2032CpuMax;
             set => SetAndNotify(ref _cr2032CpuMax, value);
         }
-
-
-
-        // 3. Flash Programming
+        #region
+        // 3. Прошивка Flash
         [JsonProperty("3. Прошивка flash")]
         public bool IsFlashProgrammingEnabled { get; set; }
 
@@ -316,7 +209,7 @@ namespace RTL.Models
         [JsonProperty("flash_firmware_path")]
         public string FlashFirmwarePath { get; set; }
 
-        // 4. MCU Programming
+        // 4. Прошивка MCU
         [JsonProperty("4. Прошивка MCU")]
         public bool IsMcuProgrammingEnabled { get; set; }
 
@@ -326,7 +219,7 @@ namespace RTL.Models
         [JsonProperty("mcu_firmware_path")]
         public string McuFirmwarePath { get; set; }
 
-        // 5. DUT Self-Test
+        // 5. Самотестирование
         [JsonProperty("5. Самотестирование")]
         public bool IsDutSelfTestEnabled { get; set; }
 
@@ -360,7 +253,6 @@ namespace RTL.Models
         [JsonProperty("dut_poe_test")]
         public int DutPoeTest { get; set; }
 
-
         [JsonProperty("dut_rs485_test")]
         public int DutRs485Test { get; set; }
 
@@ -373,14 +265,14 @@ namespace RTL.Models
         [JsonProperty("dut_i2c_temper_max")]
         public double DutI2CTemperMax { get; set; }
 
-        // 6. Report Generation
+        // 6. Отправка отчёта
         [JsonProperty("6. отправка отчёта")]
         public bool IsReportGenerationEnabled { get; set; }
 
         [JsonProperty("make_report")]
         public int MakeReport { get; set; }
 
-        // 7. Label Printing
+        // 7. Печать этикетки
         [JsonProperty("7. печать этикетки")]
         public bool IsLabelPrintingEnabled { get; set; }
 
@@ -392,9 +284,48 @@ namespace RTL.Models
 
         [JsonProperty("label_size")]
         public int LabelSize { get; set; }
+#endregion
 
+        // Приватные поля для свойств с уведомлениями
+        private ushort _k5_52V_Min;
+        private ushort _k5_52V_Max;
+        private ushort _k5_55V_Min;
+        private ushort _k5_55V_Max;
+        private ushort _v12Min;
+        private ushort _v12Max;
+        private ushort _voutMin;
+        private ushort _voutMax;
+        private ushort _voutVresMin;
+        private ushort _voutVresMax;
+        private ushort _vrefMin;
+        private ushort _vrefMax;
+        private ushort _vcc3V3Min;
+        private ushort _vcc3V3Max;
+        private ushort _vcc1V5Min;
+        private ushort _vcc1V5Max;
+        private ushort _vcc1V1Min;
+        private ushort _vcc1V1Max;
+        private ushort _cr2032Min;
+        private ushort _cr2032Max;
+        private ushort _cr2032CpuMin;
+        private ushort _cr2032CpuMax;
 
+        // Реализация INotifyPropertyChanged
+        public event PropertyChangedEventHandler PropertyChanged;
 
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
 
+        private bool SetAndNotify<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+                return false;
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
     }
 }

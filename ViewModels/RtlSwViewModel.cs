@@ -103,6 +103,11 @@ namespace RTL.ViewModels
                     _logger.LogToUser("Не удалось подключиться к серверу, результаты тестирования не будут отправлены.", Loggers.LogLevel.Warning);
                 }
 
+                if (!await TryInitializeModbusAsync ())
+                {
+                    _logger.LogToUser("Не удалось подключиться к модбасу", Loggers.LogLevel.Warning);
+                }
+                _ = MonitorStandAsync();
                 IsStandConnected = true;  // Если все прошло успешно, отмечаем подключение
                 _logger.LogToUser("Стенд успешно подключен!", Loggers.LogLevel.Success);
             }
@@ -140,62 +145,59 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser($"Попытка открыть {Properties.Settings.Default.ComSW}...", Loggers.LogLevel.Info);
 
-                    // Принудительное закрытие перед подключением
-                    DisconnectModbus();
-                    await Task.Delay(500); // Даем порту время освободиться
+                    DisconnectModbus(); // Закрываем порт перед подключением
+                    await Task.Delay(500);
 
-                    // Создаём и открываем порт
-                    using (var serialPort = new SerialPort(Properties.Settings.Default.ComSW, 9600, Parity.None, 8, StopBits.One)
+                    _serialPortCom = new SerialPort(Properties.Settings.Default.ComSW, 9600, Parity.None, 8, StopBits.One)
                     {
-                        ReadTimeout = 3000
-                    })
+                        ReadTimeout = 3000,
+                        WriteTimeout = 3000
+                    };
+
+                    _serialPortCom.Open();
+                    _logger.LogToUser($"Порт {Properties.Settings.Default.ComSW} успешно открыт.", Loggers.LogLevel.Info);
+
+                    _modbusMaster = ModbusSerialMaster.CreateRtu(_serialPortCom);
+                    _modbusMaster.Transport.Retries = 3;
+                    IsModbusConnected = true;
+
+                    _logger.LogToUser("Попытка чтения регистра 0 для проверки типа стенда...", Loggers.LogLevel.Info);
+
+                    var readTask = Task.Run(() =>
                     {
-                        serialPort.Open();
-                        _logger.LogToUser($"Порт {Properties.Settings.Default.ComSW} успешно открыт.", Loggers.LogLevel.Info);
-
-                        // Создаём master после успешного открытия порта
-                        var modbusMaster = ModbusSerialMaster.CreateRtu(serialPort);
-                        modbusMaster.Transport.Retries = 3;
-                        IsModbusConnected = true;
-
-                        _logger.LogToUser("Попытка чтения регистра 0 для проверки типа стенда...", Loggers.LogLevel.Info);
-
-                        var readTask = Task.Run(() =>
+                        try
                         {
-                            try
+                            ushort standType = _modbusMaster.ReadHoldingRegisters(1, 0, 1)[0];
+                            if (standType != 104)
                             {
-                                ushort standType = modbusMaster.ReadHoldingRegisters(1, 0, 1)[0];
-                                if (standType != 104)
-                                {
-                                    _logger.LogToUser($"Ошибка: неверный тип стенда ({standType}). Ожидалось: 104 (STAND RTL-SW).", Loggers.LogLevel.Error);
-                                    return false;
-                                }
-
-                                ushort standSerial = modbusMaster.ReadHoldingRegisters(1, 2300, 1)[0];
-                                ReportModel.StandType = standType;
-                                ReportModel.StandSerialNumber = standSerial;
-
-                                _logger.LogToUser($"Тип стенда: {standType} (STAND RTL-SW), Серийный номер: {standSerial}", Loggers.LogLevel.Info);
-                                return true;
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogToUser($"Ошибка при чтении регистра: {ex.Message}", Loggers.LogLevel.Error);
+                                _logger.LogToUser($"Ошибка: неверный тип стенда ({standType}). Ожидалось: 104 (STAND RTL-SW).", Loggers.LogLevel.Error);
                                 return false;
                             }
-                        });
 
-                        if (await Task.WhenAny(readTask, Task.Delay(responseTimeout)) == readTask)
-                        {
-                            if (await readTask)
-                            {
-                                return true;
-                            }
+                            ushort standSerial = _modbusMaster.ReadHoldingRegisters(1, 2300, 1)[0];
+                            ReportModel.StandType = standType;
+                            ReportModel.StandSerialNumber = standSerial;
+
+                            _logger.LogToUser($"Тип стенда: {standType} (STAND RTL-SW), Серийный номер: {standSerial}", Loggers.LogLevel.Info);
+                            return true;
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            _logger.LogToUser("Ошибка: не получен ответ от устройства в течение 10 секунд.", Loggers.LogLevel.Error);
+                            _logger.LogToUser($"Ошибка при чтении регистра: {ex.Message}", Loggers.LogLevel.Error);
+                            return false;
                         }
+                    });
+
+                    if (await Task.WhenAny(readTask, Task.Delay(responseTimeout)) == readTask)
+                    {
+                        if (await readTask)
+                        {
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogToUser("Ошибка: не получен ответ от устройства в течение 10 секунд.", Loggers.LogLevel.Error);
                     }
                 }
                 catch (UnauthorizedAccessException)
@@ -226,6 +228,7 @@ namespace RTL.ViewModels
 
             return false;
         }
+
 
         private void DisconnectModbus()
         {
@@ -407,7 +410,35 @@ namespace RTL.ViewModels
         #endregion Профиль тестирования
 
         #region мониторинг
+        public StandRegistersModel StandRegisters { get; } = new StandRegistersModel(); // Создаём экземпляр
 
+        private async Task MonitorStandAsync()
+        {
+            while (IsStandConnected)
+            {
+                try
+                {
+                    // Читаем регистры Modbus
+                    var registers = await _modbusMaster.ReadHoldingRegistersAsync(1, 2309, 5);
+
+                    // Обновляем значения в модели StandRegistersModel
+                    StandRegisters.V52 = registers[0];
+                    StandRegisters.V55 = registers[1];
+                    StandRegisters.VOut = registers[2];
+                    StandRegisters.Ref2048 = registers[3];
+                    StandRegisters.V12 = registers[4];
+
+                    // Логируем полученные данные
+                    _logger.LogToUser($"V52: {StandRegisters.V52}, V55: {StandRegisters.V55}, VOut: {StandRegisters.VOut}, REF2048: {StandRegisters.Ref2048}, V12: {StandRegisters.V12}", Loggers.LogLevel.Debug);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogToUser($"Ошибка при чтении регистров Modbus: {ex.Message}", Loggers.LogLevel.Error);
+                }
+
+                await Task.Delay(1000); // Ожидание 1 секунда перед следующим опросом
+            }
+        }
 
 
 

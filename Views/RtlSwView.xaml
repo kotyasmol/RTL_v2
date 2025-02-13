@@ -271,7 +271,8 @@
                                 Command="{Binding RunTestCommand}" ToolTip="Запуск теста">
                             <Button.Template>
                                 <ControlTemplate TargetType="{x:Type Button}">
-                                    <Border Width="16" Height="16" CornerRadius="8" Background="Green">
+                                    <Border Width="16" Height="16" CornerRadius="8"
+                Background="{Binding IsTestRunning, Converter={StaticResource BoolToColorConverter}}">
                                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
                                 </ControlTemplate>

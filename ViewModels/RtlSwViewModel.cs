@@ -426,10 +426,6 @@ namespace RTL.ViewModels
             if (TestConfig != null)
             {
                 TestConfig.PropertyChanged += ProfileTest_PropertyChanged;
-                /*TestConfig.K5_52V_MinChanged += (s, e) =>
-                {
-                    Console.WriteLine("K5_52V_Min изменился! Запускаем дополнительную логику...");
-                };*/ // возможно можно уйти от этого 
             }
             else
             {

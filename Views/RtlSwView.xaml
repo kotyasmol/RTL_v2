@@ -67,23 +67,55 @@
                         <Rectangle Canvas.Left="485" Canvas.Top="65" Width="15" Height="9" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="466" Canvas.Top="93" Width="36" Height="28" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
                         <!-- K5 -->
-                        <Rectangle Canvas.Left="609" Canvas.Top="10" Width="140" Height="105" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="550" Canvas.Top="45" Width="14" Height="8" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="570" Canvas.Top="45" Width="14" Height="8" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="552" Canvas.Top="70" Width="12" Height="8" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="549" Canvas.Top="96" Width="13" Height="6" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="571" Canvas.Top="96" Width="12" Height="6" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="942" Canvas.Top="10" Width="104" Height="57" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="988" Canvas.Top="84" Width="58" Height="28" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="1056" Canvas.Top="58" Width="56" Height="69" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="836" Canvas.Top="21" Width="83" Height="7" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="836" Canvas.Top="98" Width="83" Height="7" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="878" Canvas.Top="26" Width="41" Height="74" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="927" Canvas.Top="90" Width="25" Height="29" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="955" Canvas.Top="90" Width="25" Height="29" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Ellipse Canvas.Left="766" Canvas.Top="16" Width="49" Height="48" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Ellipse Canvas.Left="764" Canvas.Top="69" Width="54" Height="53" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-
+                        <Rectangle Canvas.Left="609" Canvas.Top="10" Width="140" Height="105"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="550" Canvas.Top="45" Width="14" Height="8"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="570" Canvas.Top="45" Width="14" Height="8"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="552" Canvas.Top="70" Width="12" Height="8"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="549" Canvas.Top="96" Width="13" Height="6"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="571" Canvas.Top="96" Width="12" Height="6"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="942" Canvas.Top="10" Width="104" Height="57"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="988" Canvas.Top="84" Width="58" Height="28"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="1056" Canvas.Top="58" Width="56" Height="69"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="836" Canvas.Top="21" Width="83" Height="7"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="836" Canvas.Top="98" Width="83" Height="7"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="878" Canvas.Top="26" Width="41" Height="74"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="927" Canvas.Top="90" Width="25" Height="29"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="955" Canvas.Top="90" Width="25" Height="29"
+           Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+           Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Ellipse Canvas.Left="766" Canvas.Top="16" Width="49" Height="48"
+         Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+         Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        <Ellipse Canvas.Left="764" Canvas.Top="69" Width="54" Height="53"
+         Fill="{Binding IsK5TestPassed, Converter={StaticResource BoolToColorConverter}}"
+         Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+                        
                         <!-- 3,3V -->
                         <Rectangle Canvas.Left="690" Canvas.Top="127" Width="167" Height="167" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="657" Canvas.Top="216" Width="29" Height="48" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>

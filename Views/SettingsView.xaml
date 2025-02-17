@@ -17,6 +17,12 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="10"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
@@ -27,7 +33,7 @@
 
         <!-- Выбор темы -->
         <TextBlock Grid.Row="0" Grid.Column="0" Text="Выбор темы:" FontWeight="Bold" VerticalAlignment="Center" />
-        <ComboBox Grid.Row="0" Grid.Column="2" ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}" Width="200" Margin="0,0,81,0" HorizontalAlignment="Left"/>
+        <ComboBox Grid.Row="0" Grid.Column="2" ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}" Width="200"/>
 
         <!-- Папка для логов -->
         <TextBlock Grid.Row="2" Grid.Column="0" Text="Папка для логов:" FontWeight="Bold" VerticalAlignment="Center"/>
@@ -59,11 +65,25 @@
 
         <!-- COM-порт SW -->
         <TextBlock Grid.Row="10" Grid.Column="0" Text="COM (SW):" FontWeight="Bold" VerticalAlignment="Center" />
-        <ComboBox Grid.Row="10" Grid.Column="2" ItemsSource="{Binding AvailablePorts}" SelectedItem="{Binding SelectedComPort, Mode=TwoWay}" Width="200" Margin="0,0,81,0" HorizontalAlignment="Left"/>
+        <ComboBox Grid.Row="10" Grid.Column="2" ItemsSource="{Binding AvailablePorts}" SelectedItem="{Binding SelectedComPort, Mode=TwoWay}" Width="200"/>
+
+        <!-- Программа прошивки для COM SW -->
+        <TextBlock Grid.Row="12" Grid.Column="0" Text="Программа прошивки:" FontWeight="Bold" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="12" Grid.Column="2" Orientation="Horizontal">
+            <TextBox Text="{Binding ComSwProgramPath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
+            <Button Content="Выбрать..." Command="{Binding SelectComSwProgramCommand}" Margin="5,0,0,0"/>
+        </StackPanel>
 
         <!-- COM-порт DUT -->
-        <TextBlock Grid.Row="12" Grid.Column="0" Text="DUT Port:" FontWeight="Bold" VerticalAlignment="Center"/>
-        <ComboBox Grid.Row="12" Grid.Column="2" ItemsSource="{Binding AvailablePorts}" SelectedItem="{Binding SelectedDutPort, Mode=TwoWay}" Width="200" Margin="0,0,81,0" HorizontalAlignment="Left"/>
+        <TextBlock Grid.Row="14" Grid.Column="0" Text="DUT Port:" FontWeight="Bold" VerticalAlignment="Center"/>
+        <ComboBox Grid.Row="14" Grid.Column="2" ItemsSource="{Binding AvailablePorts}" SelectedItem="{Binding SelectedDutPort, Mode=TwoWay}" Width="200"/>
+
+        <!-- Файл прошивки для DUT -->
+        <TextBlock Grid.Row="16" Grid.Column="0" Text="Файл прошивки:" FontWeight="Bold" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="16" Grid.Column="2" Orientation="Horizontal">
+            <TextBox Text="{Binding DutFirmwarePath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
+            <Button Content="Выбрать..." Command="{Binding SelectDutFirmwareCommand}" Margin="5,0,0,0"/>
+        </StackPanel>
 
     </Grid>
 </UserControl>

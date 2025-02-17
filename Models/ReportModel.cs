@@ -32,6 +32,7 @@ namespace RTL.Models
     // Классы отчетов для удобной группировки
     public class StageK5TestReport
     {
+        public bool ResultK5 { get; set; }
         public int V52Report { get; set; }
         public int V55Report { get; set; }
         public int VOUTReport { get; set; }

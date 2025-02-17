@@ -411,6 +411,8 @@ namespace RTL.ViewModels
         #endregion Профиль тестирования
         #region мониторинг
         public StandRegistersModel StandRegisters { get; } = new StandRegistersModel(); // Создаём экземпляр
+        public ReportModel Report { get; } = new ReportModel(); // создаем репорт 
+
         private CancellationTokenSource _testCancellationTokenSource;
 
 
@@ -632,17 +634,65 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+        private async Task<bool> StartK5VccTestingAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                IsTestRunning = true;
+
+                // Подтест 1: VMAIN
+                if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage1K5, cancellationToken))
+                    return false;
+                if (cancellationToken.IsCancellationRequested) return false;
+
+                // Подтест 2: VMAIN + VRES
+                if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
+                    return false;
+                if (cancellationToken.IsCancellationRequested) return false;
+
+                // Подтест 3: VRES
+                if (!await RunSubTestK5Async(2327, () => StandRegisters.K5Stage3Status, "VRES", ReportModel.Stage3K5, cancellationToken))
+                    return false;
+                if (cancellationToken.IsCancellationRequested) return false;
+
+                _logger.LogToUser("Все подтесты узла K5 успешно завершены.", LogLevel.Success);
+                IsK5TestPassed = true;
 
 
-        #endregion тестирование
+                // Если все тесты K5 успешны, запускаем тест VCC
+                if (!await RunVCCTestAsync(cancellationToken))
+                {
+                    _logger.LogToUser("Тест VCC завершен с ошибкой.", LogLevel.Error);
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка во время тестирования: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+            finally
+            {
+                IsTestRunning = false;
+            }
+        }
 
 
         #region K5
 
-        private async Task<bool> RunSubTestK5Async(ushort startRegister, Func<ushort> getStatus, string testName, CancellationToken cancellationToken)
+        private async Task<bool> RunSubTestK5Async(ushort startRegister, Func<ushort> getStatus, string testName, StageK5TestReport report, CancellationToken cancellationToken)
         {
             try
             {
+                // Проверяем, включен ли тест K5 в профиле
+                if (!TestConfig.IsK5TestEnabled)
+                {
+                    _logger.LogToUser($"Тест {testName} пропущен (отключен в профиле).", LogLevel.Warning);
+                    return true; // Возвращаем true, чтобы тест считался успешно пройденным и выполнение продолжилось
+                }
+
                 _logger.LogToUser($"Тест {testName} запущен...", LogLevel.Info);
                 WriteToRegisterWithRetry(startRegister, 1);
 
@@ -660,7 +710,30 @@ namespace RTL.ViewModels
                     await Task.Delay(2000);
                     var status = getStatus();
                     if (status == 2 || status == 3)
-                        return status == 2;
+                    {
+                        bool success = status == 2;
+
+                        // Сохраняем результаты в модель отчета
+                        report.ResultK5 = success;
+                        report.V52Report = StandRegisters.V52Report;
+                        report.V55Report = StandRegisters.V55Report;
+                        report.VOUTReport = StandRegisters.VOutReport;
+                        report.V2048Report = StandRegisters.Ref2048Report;
+                        report.V12Report = StandRegisters.V12Report;
+
+                        // Логируем отчёт с переносами строк
+                        _logger.LogToUser(
+                            $"K5 {testName}: {success} {Environment.NewLine}" +
+                            $"55V={report.V55Report}{Environment.NewLine}" +
+                            $"52V={report.V52Report}{Environment.NewLine}" +
+                            $"Vout={report.VOUTReport}{Environment.NewLine}" +
+                            $"12V={report.V12Report}{Environment.NewLine}" +
+                            $"Vref={report.V2048Report}",
+                            success ? LogLevel.Success : LogLevel.Error
+                        );
+
+                        return success;
+                    }
                 }
             }
             catch (Exception ex)
@@ -669,61 +742,23 @@ namespace RTL.ViewModels
                 return false;
             }
         }
-
-        private async Task<bool> StartK5VccTestingAsync(CancellationToken cancellationToken)
+        private bool _isK5TestPassed;
+        public bool IsK5TestPassed
         {
-            try
-            {
-                IsTestRunning = true;
-
-                // Подтест 1: VMAIN
-                if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", cancellationToken))
-                    return false;
-                if (cancellationToken.IsCancellationRequested) return false;
-
-                // Подтест 2: VMAIN + VRES
-                if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", cancellationToken))
-                    return false;
-                if (cancellationToken.IsCancellationRequested) return false;
-
-                // Подтест 3: VRES
-                if (!await RunSubTestK5Async(2327, () => StandRegisters.K5Stage3Status, "VRES", cancellationToken))
-                    return false;
-                if (cancellationToken.IsCancellationRequested) return false;
-
-                _logger.LogToUser("Все подтесты узла K5 успешно завершены.", LogLevel.Success);
-
-                // Если все тесты K5 успешны, запускаем тест VCC
-                if (!await RunVCCTestAsync(cancellationToken))
-                {
-                    _logger.LogToUser("Тест VCC завершен с ошибкой.", LogLevel.Error);
-                    return false;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogToUser($"Ошибка во время тестирования узла K5: {ex.Message}", LogLevel.Error);
-                return false;
-            }
-            finally
-            {
-                IsTestRunning = false;
-            }
+            get => _isK5TestPassed;
+            set => SetAndNotify(ref _isK5TestPassed, value);
         }
 
-        #endregion K5
 
+        #endregion K5
         #region VCC
         private async Task<bool> RunVCCTestAsync(CancellationToken cancellationToken)
         {
             try
             {
                 _logger.LogToUser("Тест VCC запущен...", LogLevel.Info);
-                WriteToRegisterWithRetry(2330, 1); // Запускаем тест
+                WriteToRegisterWithRetry(2330, 1);
 
-                // Ожидаем, пока статус не изменится с "ожидания" (0) на "выполнение" (1)
                 while (StandRegisters.VCCTestStatus == 0)
                 {
                     if (cancellationToken.IsCancellationRequested) return false;
@@ -738,15 +773,20 @@ namespace RTL.ViewModels
                     await Task.Delay(2000);
                     var status = StandRegisters.VCCTestStatus;
 
-                    if (status == 2)
+                    if (status == 2 || status == 3)
                     {
-                        _logger.LogToUser("Тест VCC успешно завершен.", LogLevel.Success);
-                        return true;
-                    }
-                    if (status == 3)
-                    {
-                        _logger.LogToUser("Тест VCC завершен с ошибкой.", LogLevel.Error);
-                        return false;
+                        bool success = status == 2;
+
+                        // Логируем отчёт
+                        _logger.LogToUser(
+                            $"VCC Тест: {success}; " +
+                            $"3.3V={StandRegisters.V3_3Report}; 1.5V={StandRegisters.V1_5Report}; " +
+                            $"1.1V={StandRegisters.V1_1Report}; CR2032={StandRegisters.CR2032Report}; " +
+                            $"CR2032 CPU={StandRegisters.CR2032_CPUReport}",
+                            success ? LogLevel.Success : LogLevel.Error
+                        );
+
+                        return success;
                     }
                 }
             }
@@ -757,7 +797,12 @@ namespace RTL.ViewModels
             }
         }
 
+
         #endregion VCC
+        #endregion тестирование
+
+
+
 
         public RtlSwViewModel(Loggers logger)
         {
@@ -867,7 +912,7 @@ namespace RTL.ViewModels
         protected override void OnClose()
         {
             _logger.LogToUser("Закрытие приложения, отключение портов...", Loggers.LogLevel.Info);
-
+            IsStandConnected = false;
             try
             {
                 if (_serialPortCom != null)

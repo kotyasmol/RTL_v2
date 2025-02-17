@@ -94,17 +94,21 @@ namespace RTL.ViewModels
                 if (!await TryLoadTestProfileAsync())
                 {
                     _logger.LogToUser("Не удалось загрузить профиль тестирования.", Loggers.LogLevel.Error);
+                    IsStandConnected = false;
                     return;
                 }
 
                 if (!await TryConnectToServerAsync() && TestConfig.IsReportGenerationEnabled)
                 {
                     _logger.LogToUser("Не удалось подключиться к серверу, результаты тестирования не будут отправлены.", Loggers.LogLevel.Warning);
+
                 }
 
                 if (!await TryInitializeModbusAsync ())
                 {
                     _logger.LogToUser("Не удалось подключиться к модбасу", Loggers.LogLevel.Warning);
+                    IsStandConnected = false;
+                    return;
                 }
 
                 Task.Run(() => MonitorStandAsync());
@@ -118,10 +122,6 @@ namespace RTL.ViewModels
                 await DisconnectAsync();
             }
         }
-
-
-
-
 
         #endregion подключение к стенду
         #region подключения модбас
@@ -411,6 +411,8 @@ namespace RTL.ViewModels
         #endregion Профиль тестирования
         #region мониторинг
         public StandRegistersModel StandRegisters { get; } = new StandRegistersModel(); // Создаём экземпляр
+        private CancellationTokenSource _testCancellationTokenSource;
+
 
         private async Task MonitorStandAsync()
         {
@@ -528,32 +530,27 @@ namespace RTL.ViewModels
                     StandRegisters.RS485Enable = registers[83];
                     StandRegisters.RS485RxOK = registers[84];
                     #endregion обновление значений
-                    while (StandRegisters.RunBtn == 1 )
+                    if (StandRegisters.RunBtn == 1 && !IsTestRunning && !_testCompleted)
                     {
-                        IsTestRunning = true;
-                        ExecuteRunTest();
+                        _testCancellationTokenSource?.Cancel();
+                        _testCancellationTokenSource = new CancellationTokenSource();
 
-                        if (!await PrepareStandForTestingAsync())
-                        {
-                            _logger.LogToUser("Ошибка при подготовке к тестированию", Loggers.LogLevel.Error);
-                            IsTestRunning = false;
-                            break; // Прерываем цикл, если подготовка не удалась
-                        }
+                        await PrepareStandForTestingAsync();
+                        _ = Task.Run(() => StartK5VccTestingAsync(_testCancellationTokenSource.Token));
 
-                        await RunStandTestAsync();
-
-                        // Дополнительная проверка перед следующим циклом
-                        if (StandRegisters.RunBtn == 0)
-                        {
-                            _logger.LogToUser("Тестирование прервано пользователем.", Loggers.LogLevel.Warning);
-                            IsTestRunning = false;
-                            await StopHard();
-                            break; // Выходим из цикла
-                        }
-
-                        await Task.Delay(1000); // Делаем задержку между итерациями
+                        _testCompleted = true; // Устанавливаем флаг, чтобы тест не запускался повторно
                     }
-
+                    else if (StandRegisters.RunBtn == 0)
+                    {
+                        _testCompleted = false; // Сбрасываем флаг, разрешая новый запуск тестов
+                    }
+                    else if (StandRegisters.RunBtn == 0 && IsTestRunning)
+                    {
+                        _logger.LogToUser("Тестирование прервано пользователем.", Loggers.LogLevel.Warning);
+                        _testCancellationTokenSource?.Cancel();
+                        IsTestRunning = false;
+                        await StopHard();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -565,17 +562,16 @@ namespace RTL.ViewModels
         }
 
 
+
         private bool _isTestRunning;
         public bool IsTestRunning
         {
             get => _isTestRunning;
             set => SetAndNotify(ref _isTestRunning, value);
         }
+        private bool _testCompleted = false; // Флаг завершения теста
 
-        private void ExecuteRunTest()
-        {
-            _logger.LogToUser("Кнопка RUN - вкл ", Loggers.LogLevel.Info);
-        }
+
 
         #endregion мониторинг
 
@@ -637,85 +633,35 @@ namespace RTL.ViewModels
             }
         }
 
-        private async Task RunStandTestAsync()
-        {
-            try
-            {
-                // Проверка и запуск теста K5
-                if (TestConfig.IsK5TestEnabled)
-                {
-                    if (!await StartK5TestingAsync())
-                    {
-                        _logger.LogToUser("Тестирование K5 завершено с ошибками.", LogLevel.Error);
-                        await StopHard();
-                        return;
-                    }
-                }
-                else
-                {
-                    _logger.LogToUser("Тестирование K5 пропущено (отключено в конфигурации).", LogLevel.Info);
-                }
 
-                _logger.LogToUser("Все тесты успешно завершены.", LogLevel.Success);
-                await StopHard();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogToUser($"Ошибка при выполнении тестов: {ex.Message}", LogLevel.Error);
-                await StopHard();
-            }
-        }
         #endregion тестирование
 
 
         #region K5
 
-        private async Task<bool> RunSubTestK5Async(ushort startRegister, Func<ushort> getStatus,  Action saveReport, string testName)
+        private async Task<bool> RunSubTestK5Async(ushort startRegister, Func<ushort> getStatus, string testName, CancellationToken cancellationToken)
         {
             try
             {
                 _logger.LogToUser($"Тест {testName} запущен...", LogLevel.Info);
                 WriteToRegisterWithRetry(startRegister, 1);
-                _logger.LogToUser($"Ожидание начала теста {testName}... текущее состояние = {StandRegisters.K5Stage1Start}", LogLevel.Debug);
-                while (true)
+
+                while (getStatus() != 1)
                 {
-                    //await Task.Delay(3000);
-                    var status = getStatus();
-                    if (status == 1)
-                    {
-                        _logger.LogToUser($"Тест {testName} запущен (статус: {status}).", LogLevel.Debug);
-                        break;
-                    }
+                    if (cancellationToken.IsCancellationRequested) return false;
+                    await Task.Delay(500);
                 }
 
                 _logger.LogToUser($"Ожидание завершения теста {testName}...", LogLevel.Debug);
                 while (true)
                 {
+                    if (cancellationToken.IsCancellationRequested) return false;
+
                     await Task.Delay(2000);
                     var status = getStatus();
                     if (status == 2 || status == 3)
-                        break;
+                        return status == 2;
                 }
-
-                var finalStatus = getStatus();
-                if (finalStatus == 2)
-                {
-                    _logger.LogToUser($"Тест {testName} завершён успешно.", LogLevel.Success);
-
-                    saveReport();
-
-                    return true;
-                }
-                else if (finalStatus == 3)
-                {
-                    _logger.LogToUser($"Тест {testName} завершён с ошибкой.", LogLevel.Error);
-
-
-                    saveReport();
-                    return false;
-                }
-
-                return false;
             }
             catch (Exception ex)
             {
@@ -724,73 +670,94 @@ namespace RTL.ViewModels
             }
         }
 
-        public async Task<bool> StartK5TestingAsync()
+        private async Task<bool> StartK5VccTestingAsync(CancellationToken cancellationToken)
         {
             try
             {
+                IsTestRunning = true;
+
                 // Подтест 1: VMAIN
-                if (!await RunSubTestK5Async(
-                        2323,
-                        () => StandRegisters.K5Stage1Status,
-                        () =>
-                        {
-                            ReportModel.Stage1K5.V52Report = StandRegisters.V52Report;
-                            ReportModel.Stage1K5.V55Report = StandRegisters.V55Report;
-                            ReportModel.Stage1K5.VOUTReport = StandRegisters.VOutReport;
-                            ReportModel.Stage1K5.V2048Report = StandRegisters.Ref2048Report;
-                            ReportModel.Stage1K5.V12Report = StandRegisters.V12Report;
-                        },
-                        "VMAIN"))
-                {
+                if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", cancellationToken))
                     return false;
-                }
+                if (cancellationToken.IsCancellationRequested) return false;
+
                 // Подтест 2: VMAIN + VRES
-                if (!await RunSubTestK5Async(
-                        2325,
-                        () => StandRegisters.K5Stage2Status,
-                        () =>
-                        {
-                            ReportModel.Stage2K5.V52Report = StandRegisters.V52Report;
-                            ReportModel.Stage2K5.V55Report = StandRegisters.V55Report;
-                            ReportModel.Stage2K5.VOUTReport = StandRegisters.VOutReport;
-                            ReportModel.Stage2K5.V2048Report = StandRegisters.Ref2048Report;
-                            ReportModel.Stage2K5.V12Report = StandRegisters.V12Report;
-                        },
-                        "VMAIN + VRES"))
-                {
+                if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", cancellationToken))
                     return false;
-                }
+                if (cancellationToken.IsCancellationRequested) return false;
 
                 // Подтест 3: VRES
-                if (!await RunSubTestK5Async(
-                        2327,
-                        () => StandRegisters.K5Stage3Status,
-                        () =>
-                        {
-                            ReportModel.Stage3K5.V52Report = StandRegisters.V52Report;
-                            ReportModel.Stage3K5.V55Report = StandRegisters.V55Report;
-                            ReportModel.Stage3K5.VOUTReport = StandRegisters.VOutReport;
-                            ReportModel.Stage3K5.V2048Report = StandRegisters.Ref2048Report;
-                            ReportModel.Stage3K5.V12Report = StandRegisters.V12Report;
-                        },
-                        "VRES"))
+                if (!await RunSubTestK5Async(2327, () => StandRegisters.K5Stage3Status, "VRES", cancellationToken))
+                    return false;
+                if (cancellationToken.IsCancellationRequested) return false;
+
+                _logger.LogToUser("Все подтесты узла K5 успешно завершены.", LogLevel.Success);
+
+                // Если все тесты K5 успешны, запускаем тест VCC
+                if (!await RunVCCTestAsync(cancellationToken))
                 {
+                    _logger.LogToUser("Тест VCC завершен с ошибкой.", LogLevel.Error);
                     return false;
                 }
 
-
-                _logger.LogToUser("Все подтесты узла K5 успешно завершены.", LogLevel.Success);
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования узла K5: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+            finally
+            {
+                IsTestRunning = false;
+            }
+        }
 
+        #endregion K5
+
+        #region VCC
+        private async Task<bool> RunVCCTestAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogToUser("Тест VCC запущен...", LogLevel.Info);
+                WriteToRegisterWithRetry(2330, 1); // Запускаем тест
+
+                // Ожидаем, пока статус не изменится с "ожидания" (0) на "выполнение" (1)
+                while (StandRegisters.VCCTestStatus == 0)
+                {
+                    if (cancellationToken.IsCancellationRequested) return false;
+                    await Task.Delay(500);
+                }
+
+                _logger.LogToUser("Ожидание завершения теста VCC...", LogLevel.Debug);
+                while (true)
+                {
+                    if (cancellationToken.IsCancellationRequested) return false;
+
+                    await Task.Delay(2000);
+                    var status = StandRegisters.VCCTestStatus;
+
+                    if (status == 2)
+                    {
+                        _logger.LogToUser("Тест VCC успешно завершен.", LogLevel.Success);
+                        return true;
+                    }
+                    if (status == 3)
+                    {
+                        _logger.LogToUser("Тест VCC завершен с ошибкой.", LogLevel.Error);
+                        return false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка во время теста VCC: {ex.Message}", LogLevel.Error);
                 return false;
             }
         }
-        #endregion K5
 
+        #endregion VCC
 
         public RtlSwViewModel(Loggers logger)
         {
@@ -821,7 +788,7 @@ namespace RTL.ViewModels
         {
             _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
             IsTestRunning = false;
-            IsStandConnected = false;
+            //IsStandConnected = false;
             // Останавливаем стенд (например, сбрасываем питание)
             WriteToRegisterWithRetry(2301, 0);
             WriteToRegisterWithRetry(2302, 0);

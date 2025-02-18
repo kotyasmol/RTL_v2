@@ -106,5 +106,41 @@ namespace RTL.Properties {
                 this["DutSW"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string FlashProgramPath {
+            get {
+                return ((string)(this["FlashProgramPath"]));
+            }
+            set {
+                this["FlashProgramPath"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string FlashFirmwarePath {
+            get {
+                return ((string)(this["FlashFirmwarePath"]));
+            }
+            set {
+                this["FlashFirmwarePath"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string SwdProgramPath {
+            get {
+                return ((string)(this["SwdProgramPath"]));
+            }
+            set {
+                this["SwdProgramPath"] = value;
+            }
+        }
     }
 }

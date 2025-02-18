@@ -239,7 +239,7 @@
                             </Button.Template>
                         </Button>
                         <TextBlock Text="Профиль" VerticalAlignment="Center" Margin="10,0,0,0"
-                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
+                                   
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
 
@@ -256,8 +256,7 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <TextBlock Text="Сервер" VerticalAlignment="Center" Margin="10,0,0,0"
-                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
+                        <TextBlock Text="Сервер" VerticalAlignment="Center" Margin="10,0,0,0"                             
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
 
@@ -275,7 +274,6 @@
                             </Button.Template>
                         </Button>
                         <TextBlock Text="Modbus" VerticalAlignment="Center" Margin="10,0,0,0"
-                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
 
@@ -293,7 +291,6 @@
                             </Button.Template>
                         </Button>
                         <TextBlock Text="DUT" VerticalAlignment="Center" Margin="10,0,0,0"
-                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
 
@@ -311,7 +308,6 @@
                             </Button.Template>
                         </Button>
                         <TextBlock Text="Run" VerticalAlignment="Center" Margin="10,0,0,0"
-                                   Foreground="{Binding IsDarkTheme, Converter={StaticResource BoolToTextColorConverter}}"
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
 

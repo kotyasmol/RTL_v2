@@ -71,6 +71,51 @@ namespace RTL.ViewModels
             }
         }
 
+
+        private string _flashProgramPath;
+        public string FlashProgramPath
+        {
+            get => _flashProgramPath;
+            set
+            {
+                if (SetAndNotify(ref _flashProgramPath, value))
+                {
+                    Properties.Settings.Default.FlashProgramPath = value;
+                    Properties.Settings.Default.Save();
+                }
+            }
+        }
+
+        private string _flashFirmwarePath;
+        public string FlashFirmwarePath
+        {
+            get => _flashFirmwarePath;
+            set
+            {
+                if (SetAndNotify(ref _flashFirmwarePath, value))
+                {
+                    Properties.Settings.Default.FlashFirmwarePath = value;
+                    Properties.Settings.Default.Save();
+                }
+            }
+        }
+
+        private string _swdProgramPath;
+        public string SwdProgramPath
+        {
+            get => _swdProgramPath;
+            set
+            {
+                if (SetAndNotify(ref _swdProgramPath, value))
+                {
+                    Properties.Settings.Default.SwdProgramPath = value;
+                    Properties.Settings.Default.Save();
+                }
+            }
+        }
+
+
+
         private string _rtlPoeProfilePath;
         public string RtlPoeProfilePath
         {
@@ -84,6 +129,11 @@ namespace RTL.ViewModels
                 }
             }
         }
+
+
+
+
+
         private ObservableCollection<string> _availablePorts = new();
         public ObservableCollection<string> AvailablePorts
         {
@@ -103,18 +153,7 @@ namespace RTL.ViewModels
 
             }
         }
-        private string _selectedDutPort;
-        public string SelectedDutPort
-        {
-            get => _selectedDutPort;
-            set
-            {
-                SetAndNotify(ref _selectedDutPort, value);
-                Properties.Settings.Default.DutSW = value;
-                Properties.Settings.Default.Save();
-                //_logger.LogToUser($"DUT Port изменён на {value}", Loggers.LogLevel.Info);
-            }
-        }
+
 
 
         public List<string> Themes { get; set; } = new List<string> { "Светлая", "Темная" };
@@ -124,11 +163,17 @@ namespace RTL.ViewModels
         public RelayCommand SelectReportFolderCommand { get; }
         public RelayCommand SelectRtlSwProfileCommand { get; }
         public RelayCommand SelectRtlPoeProfileCommand { get; }
+        public RelayCommand SelectFlashProgramCommand { get; }
+        public RelayCommand SelectFlashFirmwareCommand { get; }
+        public RelayCommand SelectSwdProgramCommand { get; }
 
         public SettingsViewModel()
         {
             // Загружаем сохранённые настройки
             SelectedTheme = Properties.Settings.Default.Theme;
+
+
+            // Создаём команды
             ApplyTheme(SelectedTheme);
 
             // Устанавливаем пути по умолчанию
@@ -142,16 +187,22 @@ namespace RTL.ViewModels
 
             RtlSwProfilePath = Properties.Settings.Default.RtlSwProfilePath ?? string.Empty;
             RtlPoeProfilePath = Properties.Settings.Default.RtlPoeProfilePath ?? string.Empty;
+            FlashProgramPath = Properties.Settings.Default.FlashProgramPath ?? string.Empty;
+            FlashFirmwarePath = Properties.Settings.Default.FlashFirmwarePath ?? string.Empty;
+            SwdProgramPath = Properties.Settings.Default.SwdProgramPath ?? string.Empty;
 
             // Создаём команды
             SelectLogFolderCommand = new RelayCommand(SelectLogFolder);
             SelectReportFolderCommand = new RelayCommand(SelectReportFolder);
             SelectRtlSwProfileCommand = new RelayCommand(SelectRtlSwProfile);
             SelectRtlPoeProfileCommand = new RelayCommand(SelectRtlPoeProfile);
+            SelectFlashProgramCommand = new RelayCommand(SelectFlashProgram);
+            SelectFlashFirmwareCommand = new RelayCommand(SelectFlashFirmware);
+            SelectSwdProgramCommand = new RelayCommand(SelectSwdProgram);
 
             LoadAvailablePorts();
             SelectedComPort = Properties.Settings.Default.ComSW;
-            SelectedDutPort = Properties.Settings.Default.DutSW;
+
         }
 
         private void ApplyTheme(string theme)
@@ -206,6 +257,45 @@ namespace RTL.ViewModels
                 RtlPoeProfilePath = dialog.FileName;
             }
         }
+        private void SelectFlashProgram()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Исполняемые файлы (*.exe)|*.exe",
+                Title = "Выберите программу для прошивки (XGecu.exe)"
+            };
+            if (dialog.ShowDialog() == true)
+            {
+                FlashProgramPath = dialog.FileName;
+            }
+        }
+
+        private void SelectFlashFirmware()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Файлы прошивки (*.mpj)|*.mpj",
+                Title = "Выберите файл прошивки FLASH"
+            };
+            if (dialog.ShowDialog() == true)
+            {
+                FlashFirmwarePath = dialog.FileName;
+            }
+        }
+
+        private void SelectSwdProgram()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Все файлы (*.*)|*.*",
+                Title = "Выберите программу для прошивки SWD"
+            };
+            if (dialog.ShowDialog() == true)
+            {
+                SwdProgramPath = dialog.FileName;
+            }
+        }
+
         public void LoadAvailablePorts()
         {
             AvailablePorts = new ObservableCollection<string>(SerialPort.GetPortNames().ToList());

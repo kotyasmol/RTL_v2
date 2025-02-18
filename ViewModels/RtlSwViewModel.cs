@@ -20,6 +20,13 @@ using System.IO;
 using System.Windows.Input;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
+using WindowsInput.Native;
+using WindowsInput;
+using System.Runtime.InteropServices;
+
+
+
 
 
 namespace RTL.ViewModels
@@ -124,6 +131,7 @@ namespace RTL.ViewModels
         }
 
         #endregion подключение к стенду
+
         #region подключения модбас
         private IModbusSerialMaster _modbusMaster;
         private SerialPort _serialPortCom;
@@ -273,6 +281,7 @@ namespace RTL.ViewModels
 
 
         #endregion подключения модбас
+
         #region подключение к серверу
         private bool _isServerConnected;
 
@@ -538,7 +547,7 @@ namespace RTL.ViewModels
                         _testCancellationTokenSource = new CancellationTokenSource();
 
                         await PrepareStandForTestingAsync();
-                        _ = Task.Run(() => StartK5VccTestingAsync(_testCancellationTokenSource.Token));
+                        _ = Task.Run(() => StartTestingAsync(_testCancellationTokenSource.Token));
 
                         _testCompleted = true; // Устанавливаем флаг, чтобы тест не запускался повторно
                     }
@@ -634,7 +643,7 @@ namespace RTL.ViewModels
                 return false;
             }
         }
-        private async Task<bool> StartK5VccTestingAsync(CancellationToken cancellationToken)
+        private async Task<bool> StartTestingAsync(CancellationToken cancellationToken)
         {
             try
             {
@@ -665,6 +674,13 @@ namespace RTL.ViewModels
                     _logger.LogToUser("Тест VCC завершен с ошибкой.", LogLevel.Error);
                     return false;
                 }
+
+                if (!await StartProgrammingAsync(cancellationToken))
+                {
+                    _logger.LogToUser("Прошивка завершена с ошибкой", LogLevel.Error);
+                    return false;
+                }
+
 
                 return true;
             }
@@ -799,6 +815,145 @@ namespace RTL.ViewModels
 
 
         #endregion VCC
+        #region прошивка
+        public async Task<bool> StartProgrammingAsync(CancellationToken cancellationToken)
+        {
+            if (!TestConfig.IsFlashProgrammingEnabled)
+            {
+                _logger.LogToUser("Прошивка отключена в настройках.", LogLevel.Warning);
+                return false;
+            }
+
+            WriteToRegisterWithRetry(2301, 1);
+
+            string programPath = Properties.Settings.Default.FlashProgramPath;
+            string projectPath = Properties.Settings.Default.FlashFirmwarePath;
+            int delay = 180000;
+
+            if (string.IsNullOrWhiteSpace(programPath) || !File.Exists(programPath))
+            {
+                _logger.LogToUser($"Программа для прошивки не найдена: {programPath}", LogLevel.Error);
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
+            {
+                _logger.LogToUser($"Файл проекта для прошивки не найден: {projectPath}", LogLevel.Error);
+                return false;
+            }
+
+            Process programProcess = null;
+
+            try
+            {
+                if (cancellationToken.IsCancellationRequested) return false;
+
+                programProcess = Process.GetProcessesByName("Xgpro").FirstOrDefault();
+                if (programProcess == null)
+                {
+                    _logger.LogToUser("Запуск программы прошивки...", LogLevel.Info);
+                    programProcess = Process.Start(programPath);
+                    await Task.Delay(5000, cancellationToken);
+                }
+                else
+                {
+                    _logger.LogToUser("Программа уже запущена. Переключение фокуса...", LogLevel.Info);
+                }
+
+                IntPtr hWnd = programProcess.MainWindowHandle;
+                if (hWnd == IntPtr.Zero)
+                {
+                    _logger.LogToUser("Ошибка: Не удалось найти главное окно программы.", LogLevel.Error);
+                    return false;
+                }
+
+                SetForegroundWindow(hWnd);
+
+                InputSimulator sim = new InputSimulator();
+
+                sim.Keyboard.ModifiedKeyStroke(VirtualKeyCode.MENU, VirtualKeyCode.VK_P);
+                await Task.Delay(500, cancellationToken);
+                sim.Keyboard.KeyPress(VirtualKeyCode.VK_O);
+                await Task.Delay(2000, cancellationToken);
+
+                string fileName = Path.GetFileName(projectPath);
+                _logger.LogToUser($"Вставка имени файла: {fileName}", LogLevel.Debug);
+
+                try
+                {
+                    // Создаём новый STA-поток для работы с буфером обмена
+                    var staThread = new Thread(() =>
+                    {
+                        try
+                        {
+                            Clipboard.SetText(fileName);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogToUser($"Ошибка при установке текста в буфер обмена: {ex.Message}", LogLevel.Error);
+                        }
+                    });
+
+                    staThread.SetApartmentState(ApartmentState.STA);
+                    staThread.Start();
+                    staThread.Join(); // Ждём завершения потока
+
+                    sim.Keyboard.ModifiedKeyStroke(VirtualKeyCode.CONTROL, VirtualKeyCode.VK_V);
+                    await Task.Delay(500, cancellationToken);
+                    sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogToUser($"Ошибка при вставке пути файла: {ex.Message}", LogLevel.Error);
+                    return false;
+                }
+
+                await Task.Delay(5000, cancellationToken);
+                sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
+
+                sim.Keyboard.ModifiedKeyStroke(VirtualKeyCode.MENU, VirtualKeyCode.VK_D);
+                await Task.Delay(200, cancellationToken);
+                sim.Keyboard.KeyPress(VirtualKeyCode.VK_P);
+                await Task.Delay(5000, cancellationToken);
+
+                sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
+                await Task.Delay(500, cancellationToken);
+                sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
+
+                _logger.LogToUser("Прошивка запущена. Ожидание завершения...", LogLevel.Info);
+                await Task.Delay(delay, cancellationToken);
+
+                _logger.LogToUser("Прошивка завершена. Закрытие программы прошивки...", LogLevel.Info);
+                if (programProcess != null && !programProcess.HasExited)
+                {
+                    programProcess.Kill();
+                    _logger.LogToUser("Программа прошивки успешно закрыта.", LogLevel.Info);
+                }
+
+                IntPtr mainWindowHandle = Process.GetCurrentProcess().MainWindowHandle;
+                SetForegroundWindow(mainWindowHandle);
+                _logger.LogToUser("Переключение обратно на стенд завершено.", LogLevel.Info);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка во время прошивки: {ex.Message}", LogLevel.Error);
+                if (programProcess != null && !programProcess.HasExited)
+                {
+                    programProcess.Kill();
+                    _logger.LogToUser("Программа прошивки принудительно закрыта из-за ошибки.", LogLevel.Warning);
+                }
+                return false;
+            }
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        #endregion прошивка
+
+
         #endregion тестирование
 
 

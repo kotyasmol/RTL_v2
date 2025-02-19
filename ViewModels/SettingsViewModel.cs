@@ -11,6 +11,7 @@ using RTL.Logger;
 using Serilog.Core;
 using System.Collections.ObjectModel;
 using System.IO.Ports;
+using System.Windows.Input;
 
 namespace RTL.ViewModels
 {
@@ -154,6 +155,18 @@ namespace RTL.ViewModels
             }
         }
 
+        private string _selectedDutPort;
+        public string SelectedDutPort
+        {
+            get => _selectedDutPort;
+            set
+            {
+                SetAndNotify(ref _selectedDutPort, value);
+                Properties.Settings.Default.DutSW = value;
+                Properties.Settings.Default.Save();
+
+            }
+        }
 
 
         public List<string> Themes { get; set; } = new List<string> { "Светлая", "Темная" };
@@ -166,6 +179,9 @@ namespace RTL.ViewModels
         public RelayCommand SelectFlashProgramCommand { get; }
         public RelayCommand SelectFlashFirmwareCommand { get; }
         public RelayCommand SelectSwdProgramCommand { get; }
+
+
+        public ICommand RefreshPortsCommand { get; }
 
         public SettingsViewModel()
         {
@@ -200,8 +216,11 @@ namespace RTL.ViewModels
             SelectFlashFirmwareCommand = new RelayCommand(SelectFlashFirmware);
             SelectSwdProgramCommand = new RelayCommand(SelectSwdProgram);
 
+            RefreshPortsCommand = new RelayCommand(LoadAvailablePorts);
             LoadAvailablePorts();
+
             SelectedComPort = Properties.Settings.Default.ComSW;
+            SelectedDutPort = Properties.Settings.Default.DutSW;
 
         }
 
@@ -299,6 +318,14 @@ namespace RTL.ViewModels
         public void LoadAvailablePorts()
         {
             AvailablePorts = new ObservableCollection<string>(SerialPort.GetPortNames().ToList());
+
+            // Восстанавливаем сохранённые порты
+            if (!string.IsNullOrEmpty(Properties.Settings.Default.ComSW) && AvailablePorts.Contains(Properties.Settings.Default.ComSW))
+                SelectedComPort = Properties.Settings.Default.ComSW;
+
+            if (!string.IsNullOrEmpty(Properties.Settings.Default.DutSW) && AvailablePorts.Contains(Properties.Settings.Default.DutSW))
+                SelectedDutPort = Properties.Settings.Default.DutSW;
         }
+
     }
 }

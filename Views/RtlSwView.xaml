@@ -7,19 +7,84 @@
 
     <UserControl.Resources>
         <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
-        <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
-        <local:BoolToInverseBoolConverter x:Key="BoolToInverseBoolConverter"/>
-        <local:ThemeToLogBackgroundConverter x:Key="ThemeToLogBackgroundConverter"/>
-        <local:BoolToTextColorConverter x:Key="BoolToTextColorConverter"/>
         <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
+        
         <Style x:Key="RoundButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="50"/>
             <Setter Property="Height" Value="50"/>
-
             <Setter Property="Padding" Value="0"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Background" Value="#B5E61D"/>
         </Style>
+
+        <Style x:Key="SwitchButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid Width="50" Height="25">
+                            <!-- Фон -->
+                            <Border x:Name="SwitchBackground"
+                            Width="50" Height="25"
+                            CornerRadius="12.5"
+                            Background="#D3D3D3"/>
+
+                            <!-- Ползунок -->
+                            <Ellipse x:Name="SwitchThumb"
+                             Width="20" Height="20"
+                             Fill="White"
+                             HorizontalAlignment="Left"
+                             Margin="3,2,0,2">
+                                <!-- Исправленный Margin -->
+                                <Ellipse.RenderTransform>
+                                    <TranslateTransform x:Name="SwitchThumbTransform"/>
+                                </Ellipse.RenderTransform>
+                            </Ellipse>
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <!-- Изменение цвета фона -->
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SwitchBackground" Property="Background" Value="#B5E61D"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="SwitchBackground" Property="Background" Value="#D3D3D3"/>
+                            </Trigger>
+
+                            <!-- Анимация движения ползунка -->
+                            <EventTrigger RoutedEvent="ToggleButton.Checked">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="SwitchThumbTransform"
+                                                 Storyboard.TargetProperty="X"
+                                                 To="23" 
+                                            Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+
+                            <EventTrigger RoutedEvent="ToggleButton.Unchecked">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="SwitchThumbTransform"
+                                                 Storyboard.TargetProperty="X"
+                                                 To="0" 
+                                            Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+
+
+
+
+
+
+
     </UserControl.Resources>
 
     <Grid>
@@ -188,16 +253,24 @@
 
 
             <!-- Логи -->
-            <ListBox x:Name="LogListBox" ItemsSource="{Binding Logs}" Height="320">
+            <ListBox x:Name="LogListBox" ItemsSource="{Binding Logs}" Height="320"
+         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+         ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding Message}" 
-                       Foreground="{Binding Color}" 
-                       FontSize="14" 
-                       FontWeight="Bold"/>
+                        <TextBox Text="{Binding Message}" 
+                     Foreground="{Binding Color}" 
+                     FontSize="14" 
+                     FontWeight="Bold"
+                     IsReadOnly="True"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     TextWrapping="NoWrap"/>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
+
+
 
 
 
@@ -206,10 +279,26 @@
 
 
         <!-- Правая колонка -->
-        <StackPanel Grid.Column="1" Margin="10">
+        <Grid Grid.Column="1" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <!-- Для Border (кнопки управления) -->
+                <ColumnDefinition Width="Auto"/>
+                <!-- Expander -->
+            </Grid.ColumnDefinitions>
+
+
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            
+            
             <!-- Border с кнопками управления -->
-            <Border BorderBrush="{Binding IsDarkTheme, Converter={StaticResource BoolToColorConverter}}" 
-                    BorderThickness="2" CornerRadius="10" Padding="10" Margin="0,0,10,10">
+            <Border  Grid.Column="0" Grid.Row="0"
+            BorderBrush="{Binding IsDarkTheme, Converter={StaticResource BoolToColorConverter}}" 
+            BorderThickness="2" CornerRadius="10" Padding="10">
                 <StackPanel Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Center">
 
                     <!-- Кнопка подключения с ProgressButton -->
@@ -314,8 +403,29 @@
                 </StackPanel>
             </Border>
 
+            <Expander Grid.Column="1" Grid.Row="0" Header="ПИТАНИЕ" IsExpanded="True" 
+          HorizontalAlignment="Left" Width="120">
+                <StackPanel Margin="5">
+
+                    <!-- ToggleSwitch для V52 -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
+                        <ToggleButton Width="50" Height="25"
+                  IsChecked="{Binding IsV52Enabled, Mode=TwoWay}"
+                  Style="{StaticResource SwitchButtonStyle}"/>
+
+                        <TextBlock Text="V52" VerticalAlignment="Center" Margin="5,0,0,0"
+               FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
+
+
+
+                    <!-- Можно добавить другие кнопки для управления питанием -->
+
+                </StackPanel>
+            </Expander>
+
             <!-- WrapPanel с элементами -->
-            <WrapPanel Orientation="Horizontal">
+            <WrapPanel Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal">
                 <!-- 52V 2309 -->
                 <!-- 3. Привязка в XAML -->
                 <Border Width="150" Height="60" CornerRadius="10" Background="#FB0574" Margin="5" Padding="10">
@@ -510,7 +620,7 @@
 
             </WrapPanel>
 
-        </StackPanel>
+        </Grid>
 
 
     </Grid>

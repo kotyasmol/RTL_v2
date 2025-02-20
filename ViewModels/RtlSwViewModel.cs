@@ -25,11 +25,6 @@ using WindowsInput.Native;
 using WindowsInput;
 using System.Runtime.InteropServices;
 using System.Text;
-
-
-
-
-
 namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
@@ -73,6 +68,7 @@ namespace RTL.ViewModels
 
         public ICommand ConnectCommand { get; }
 
+        private bool CanExecuteCommand() => !IsStandConnected;
 
         private bool _isStandConnected;
         public bool IsStandConnected
@@ -281,7 +277,6 @@ namespace RTL.ViewModels
 
 
         #endregion подключения модбас
-
         #region DUT
 
         private bool _isDutConnected;
@@ -395,7 +390,6 @@ namespace RTL.ViewModels
 
 
         #endregion DUT
-
         #region подключение к серверу
         private bool _isServerConnected;
 
@@ -1303,56 +1297,21 @@ namespace RTL.ViewModels
                 _logger.Log("Ошибка: TestConfig не инициализирован!", Loggers.LogLevel.Error);
             }
 
-            // Кнопка "Подключиться к стенду"
-            ConnectCommand = new AsyncRelayCommand(ToggleConnectionAsync);
-            Task.Run(async () =>
+
+            ConnectCommand = new AsyncRelayCommand(ToggleConnectionAsync);  // Кнопка "Подключиться к стенду"
+            Task.Run(async () => // Автоматическое подключение к стенду
             {
-                await Task.Delay(1000); // Небольшая задержка, чтобы UI успел инициализироваться
+                await Task.Delay(1000); 
                 await ToggleConnectionAsync();
             });
         }
 
-        private bool CanExecuteCommand() => !IsStandConnected;
 
 
-        private async Task StopHard()
-        {
-            _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
-            IsTestRunning = false;
-            //IsStandConnected = false;
-            // Останавливаем стенд (например, сбрасываем питание)
-            WriteToRegisterWithRetry(2301, 0);
-            WriteToRegisterWithRetry(2302, 0);
-
-            await Task.Delay(500); // Даем время на обработку
-
-            _logger.LogToUser("Стенд остановлен.", Loggers.LogLevel.Info);
-        }
 
 
-        public void DisconnectPorts()
-        {
-            try
-            {
-                if (_serialPortCom != null)
-                {
-                    if (_serialPortCom.IsOpen)
-                    {
-                        _serialPortCom.Close();
-                        _logger.LogToUser($"Порт {Properties.Settings.Default.ComSW} уже открыт, закрыт и пробуем подключиться снова.", Loggers.LogLevel.Info);
-                    }
-                    _serialPortCom.Dispose();
-                }
 
-                IsModbusConnected = false;
 
-                _logger.LogToUser("COM-порты отключены", Loggers.LogLevel.Info);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogToUser($"Ошибка при отключении портов: {ex.Message}", Loggers.LogLevel.Error);
-            }
-        }
 
         public void WriteToRegisterWithRetry(ushort register, ushort value, int retries = 3)
         {
@@ -1393,6 +1352,22 @@ namespace RTL.ViewModels
 
         #endregion кнопки модбас
 
+        #region отключения
+        private async Task StopHard()
+        {
+            _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
+            IsTestRunning = false;
+            //IsStandConnected = false;
+            // Останавливаем стенд (например, сбрасываем питание)
+            WriteToRegisterWithRetry(2301, 0);
+            WriteToRegisterWithRetry(2302, 0);
+
+            await Task.Delay(500); // Даем время на обработку
+
+            _logger.LogToUser("Стенд остановлен.", Loggers.LogLevel.Info);
+        }
+
+
         private async Task DisconnectAsync()
         {
             _logger.LogToUser("Отключение стенда...", Loggers.LogLevel.Warning);
@@ -1413,6 +1388,29 @@ namespace RTL.ViewModels
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка при отключении стенда: {ex.Message}", Loggers.LogLevel.Error);
+            }
+        }
+        public void DisconnectPorts()
+        {
+            try
+            {
+                if (_serialPortCom != null)
+                {
+                    if (_serialPortCom.IsOpen)
+                    {
+                        _serialPortCom.Close();
+                        _logger.LogToUser($"Порт {Properties.Settings.Default.ComSW} уже открыт, закрыт и пробуем подключиться снова.", Loggers.LogLevel.Info);
+                    }
+                    _serialPortCom.Dispose();
+                }
+
+                IsModbusConnected = false;
+
+                _logger.LogToUser("COM-порты отключены", Loggers.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при отключении портов: {ex.Message}", Loggers.LogLevel.Error);
             }
         }
         protected override void OnClose()
@@ -1454,6 +1452,6 @@ namespace RTL.ViewModels
 
             base.OnClose();
         }
-
+        #endregion отключения
     }
 }

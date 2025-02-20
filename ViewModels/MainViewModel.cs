@@ -23,8 +23,8 @@ namespace RTL.ViewModels
             Items.Add(_settingsViewModel);
             Items.Add(_rtlPoeViewModel);
 
-            // По умолчанию открываем настройки
-            ActivateItem(_settingsViewModel);
+            // По умолчанию открываем rtlsw
+            ActivateItem(_rtlSwViewModel);
 
             // Логируем создание MainViewModel
             _logger.Log("MainViewModel инициализирован", Loggers.LogLevel.Info);

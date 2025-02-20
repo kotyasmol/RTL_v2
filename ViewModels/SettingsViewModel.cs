@@ -233,6 +233,7 @@ namespace RTL.ViewModels
             ThemeManager.Current.ApplicationTheme = isDark ? ApplicationTheme.Dark : ApplicationTheme.Light;
         }
 
+
         private void SelectLogFolder()
         {
             var dialog = new CommonOpenFileDialog { IsFolderPicker = true, InitialDirectory = LogFolderPath };

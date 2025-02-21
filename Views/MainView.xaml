@@ -5,10 +5,10 @@
            xmlns:local="clr-namespace:RTL.Views"
            xmlns:s="https://github.com/canton7/Stylet"
            Title="REALTEK STAND"
-           Width="1100"
-           Height="720"
-           MinWidth="1100"
-           MinHeight="720"
+           Width="1250"
+           Height="800"
+           MinWidth="1250"
+           MinHeight="800"
            WindowState="Normal"
            WindowStartupLocation="CenterScreen">
     <Grid>

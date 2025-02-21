@@ -21,6 +21,9 @@ namespace RTL.Models
         // Stage 3 K5 Test
         public static StageK5TestReport Stage3K5 { get; set; } = new StageK5TestReport();
 
+        // Stage 4 K5 Test
+        public static StageK5TestReport Stage4K5 { get; set; } = new StageK5TestReport();
+
         // VCC Test
         public static VCCTestReport VCC { get; set; } = new VCCTestReport();
 

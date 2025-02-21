@@ -23,14 +23,12 @@ namespace RTL.Models
         [JsonProperty("1.Проверка узла K5")]
         public bool IsK5TestEnabled { get; set; }
 
-        [JsonProperty("k5_test")]
-        public int K5Test { get; set; }
 
         [JsonProperty("k5_start_delay")]
         public int K5StartDelay { get; set; }
 
         [JsonProperty("k5_test_delay")]
-        public int K5TestDelay { get; set; }
+        public ushort K5TestDelay { get; set; }
 
         [JsonProperty("k5_52V_min")]
         public ushort K5_52V_Min
@@ -123,8 +121,6 @@ namespace RTL.Models
         [JsonProperty("2.Проверка VCC")]
         public bool IsVccTestEnabled { get; set; }
 
-        [JsonProperty("vcc_test")]
-        public ushort VccTest { get; set; }
 
         [JsonProperty("vcc_start_delay")]
         public ushort VccStartDelay { get; set; }
@@ -203,28 +199,16 @@ namespace RTL.Models
         [JsonProperty("3. Прошивка flash")]
         public bool IsFlashProgrammingEnabled { get; set; }
 
-        [JsonProperty("flash_prog")]
-        public ushort FlashProg { get; set; }
-
-        [JsonProperty("flash_firmware_path")]
-        public string FlashFirmwarePath { get; set; }
-
         // 4. Прошивка MCU
         [JsonProperty("4. Прошивка MCU")]
         public bool IsMcuProgrammingEnabled { get; set; }
-
-        [JsonProperty("mcu_prog")]
-        public ushort McuProg { get; set; }
-
-        [JsonProperty("mcu_firmware_path")]
-        public string McuFirmwarePath { get; set; }
 
         // 5. Самотестирование
         [JsonProperty("5. Самотестирование")]
         public bool IsDutSelfTestEnabled { get; set; }
 
         [JsonProperty("dut_selftest")]
-        public int DutSelfTest { get; set; }
+        public bool DutSelfTest { get; set; }
 
         [JsonProperty("dut_start_time")]
         public ushort DutStartTime { get; set; }
@@ -233,44 +217,54 @@ namespace RTL.Models
         public int DutEndOfNewLogsTime { get; set; }
 
         [JsonProperty("dut_sensor1_test")]
-        public int DutSensor1Test { get; set; }
+        public bool DutSensor1Test { get; set; }
 
         [JsonProperty("dut_sensor2_test")]
-        public int DutSensor2Test { get; set; }
+        public bool DutSensor2Test { get; set; }
 
         [JsonProperty("dut_relay_test")]
-        public int DutRelayTest { get; set; }
+        public bool DutRelayTest { get; set; }
 
         [JsonProperty("dut_tamper_test")]
-        public int DutTamperTest { get; set; }
+        public bool DutTamperTest { get; set; }
+
+
+
+
+        [JsonProperty("dut_tamper_status_min")]
+        public ushort DutTamperStatusMin {get; set;}
+
+
+        [JsonProperty("dut_tamper_status_max")]
+        public ushort DutTamperStatusMax { get; set; }
+
+
+
 
         [JsonProperty("dut_tamper_led_min")]
-        public int DutTamperLedMin { get; set; }
+        public ushort DutTamperLedMin { get; set; }
 
         [JsonProperty("dut_tamper_led_max")]
-        public int DutTamperLedMax { get; set; }
+        public ushort DutTamperLedMax { get; set; }
 
         [JsonProperty("dut_poe_test")]
-        public int DutPoeTest { get; set; }
+        public bool DutPoeTest { get; set; }
 
         [JsonProperty("dut_rs485_test")]
-        public int DutRs485Test { get; set; }
+        public bool DutRs485Test { get; set; }
 
         [JsonProperty("dut_i2c_test")]
-        public int DutI2CTest { get; set; }
+        public bool DutI2CTest { get; set; }
 
         [JsonProperty("dut_i2c_temper_min")]
-        public double DutI2CTemperMin { get; set; }
+        public int DutI2CTemperMin { get; set; }
 
         [JsonProperty("dut_i2c_temper_max")]
-        public double DutI2CTemperMax { get; set; }
+        public int DutI2CTemperMax { get; set; }
 
         // 6. Отправка отчёта
         [JsonProperty("6. отправка отчёта")]
         public bool IsReportGenerationEnabled { get; set; }
-
-        [JsonProperty("make_report")]
-        public int MakeReport { get; set; }
 
         // 7. Печать этикетки
         [JsonProperty("7. печать этикетки")]

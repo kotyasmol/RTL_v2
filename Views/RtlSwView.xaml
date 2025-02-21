@@ -79,12 +79,6 @@
         </Style>
 
 
-
-
-
-
-
-
     </UserControl.Resources>
 
     <Grid>
@@ -291,7 +285,13 @@
 
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <!-- Для Border -->
+                <RowDefinition Height="Auto"/>
+                <!-- Для первой WrapPanel -->
+                <RowDefinition Height="Auto"/>
+                <!-- Для второй WrapPanel -->
                 <RowDefinition Height="*"/>
+                <!-- Заполнитель -->
             </Grid.RowDefinitions>
 
 
@@ -379,7 +379,7 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <TextBlock Text="DUT" VerticalAlignment="Center" Margin="10,0,0,0"
+                        <TextBlock Text="Console" VerticalAlignment="Center" Margin="10,0,0,0"
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
 
@@ -396,7 +396,7 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <TextBlock Text="Run" VerticalAlignment="Center" Margin="10,0,0,0"
+                        <TextBlock Text="Test RUN" VerticalAlignment="Center" Margin="10,0,0,0"
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
 
@@ -428,14 +428,14 @@
             <WrapPanel Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal">
                 <!-- 52V 2309 -->
                 <!-- 3. Привязка в XAML -->
-                <Border Width="150" Height="60" CornerRadius="10" Background="#FB0574" Margin="5" Padding="10">
+                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border Width="40" Height="40" CornerRadius="20" Background="#DC0263"
+                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                 VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="52V" FontWeight="Black" Foreground="White"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -533,6 +533,42 @@
                 </Border>
 
 
+                <!-- 12V 2313 -->
+
+                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Кружок с подписью -->
+                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
+                        VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="12V" FontWeight="Black" Foreground="White"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+
+                        <!-- Значения -->
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <!-- Значение StandRegisters.V55 -->
+                            <TextBlock Text="{Binding StandRegisters.V12}" 
+FontSize="22" FontWeight="Black" 
+HorizontalAlignment="Center" Foreground="White"/>
+
+                            <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding TestConfig.V12Min, UpdateSourceTrigger=PropertyChanged}" 
+    FontSize="12" Foreground="White"/>
+                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.V12Max, UpdateSourceTrigger=PropertyChanged}" 
+    FontSize="12" Foreground="White"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+
                 <!-- REF 2048 2312 -->
 
 
@@ -546,7 +582,7 @@
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                                 VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="REF" FontWeight="Black" Foreground="White"
+                            <TextBlock Text="VREF" FontWeight="Black" Foreground="White"
                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
 
@@ -570,41 +606,12 @@
                 </Border>
 
 
-                <!-- 12V 2313 -->
 
-                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
 
-                        <!-- Кружок с подписью -->
-                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                                VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="12V" FontWeight="Black" Foreground="White"
-                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
+            </WrapPanel>
 
-                        <!-- Значения -->
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.V12}" 
-        FontSize="22" FontWeight="Black" 
-        HorizontalAlignment="Center" Foreground="White"/>
 
-                            <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TestConfig.V12Min, UpdateSourceTrigger=PropertyChanged}" 
-            FontSize="12" Foreground="White"/>
-                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
-                                <TextBlock Text="{Binding TestConfig.V12Max, UpdateSourceTrigger=PropertyChanged}" 
-            FontSize="12" Foreground="White"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
+            <WrapPanel Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,20,0,0">
                 <!-- 3.3V 2314 -->
 
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
@@ -753,10 +760,15 @@
 
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-                        VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="CPU" FontWeight="Black" Foreground="White"
-                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <StackPanel Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="CR" FontWeight="Black" Foreground="White" 
+                   HorizontalAlignment="Center"/>
+                                <TextBlock Text="CPU" FontWeight="Black" Foreground="White" 
+                   HorizontalAlignment="Center"/>
+                            </StackPanel>
                         </Border>
+
 
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">

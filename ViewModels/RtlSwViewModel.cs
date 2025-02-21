@@ -84,7 +84,7 @@ namespace RTL.ViewModels
         {
             if (IsStandConnected) // Если мы уже подключены, то отключаемся
             {
-                await DisconnectAsync();
+                await DisconnectStand();
                 _logger.LogToUser("Ручное отключение от стенда - ОК", Loggers.LogLevel.Info);
                 IsStandConnected = false;  // Обновляем состояние
                 IsTestRunning = false;
@@ -108,9 +108,9 @@ namespace RTL.ViewModels
 
                 }
 
-                if (!await TryInitializeModbusAsync ())
+                if (!await TryInitializeModbusAsync())
                 {
-                    _logger.LogToUser("Не удалось подключиться к модбасу", Loggers.LogLevel.Warning);
+                    _logger.LogToUser("Не удалось подключиться к стенду", Loggers.LogLevel.Warning);
                     IsStandConnected = false;
                     return;
                 }
@@ -123,7 +123,7 @@ namespace RTL.ViewModels
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка подключения: {ex.Message}", Loggers.LogLevel.Error);
-                await DisconnectAsync();
+                await DisconnectStand();
             }
         }
 
@@ -144,8 +144,21 @@ namespace RTL.ViewModels
             const int timeout = 10000;
             const int responseTimeout = 10000;
 
+            string[] availablePorts = SerialPort.GetPortNames();
+            if (availablePorts.Length == 0)
+            {
+                _logger.LogToUser("Ошибка: В системе нет доступных COM-портов.", Loggers.LogLevel.Error);
+                return false;
+            }
+
             while ((DateTime.Now - startTime).TotalMilliseconds < timeout)
             {
+                if (_isCancellationRequested) // Проверяем, запросили ли мы отмену
+                {
+                    _logger.LogToUser("Остановлена попытка подключения к Modbus из-за отключения стенда.", Loggers.LogLevel.Warning);
+                    return false;
+                }
+
                 try
                 {
                     _logger.LogToUser($"Попытка открыть {Properties.Settings.Default.ComSW}...", Loggers.LogLevel.Info);
@@ -235,6 +248,8 @@ namespace RTL.ViewModels
         }
 
 
+
+
         private void DisconnectModbus()
         {
             try
@@ -267,7 +282,7 @@ namespace RTL.ViewModels
         {
             if (IsModbusConnected)
             {
-                DisconnectPorts();
+                await CloseConnections();
             }
             else
             {
@@ -697,6 +712,8 @@ namespace RTL.ViewModels
 
         #region тестирование
 
+        private bool _isCancellationRequested;
+
         private async Task<bool> PrepareStandForTestingAsync()
         {
             try
@@ -708,6 +725,8 @@ namespace RTL.ViewModels
                 WriteToRegisterWithRetry(2305, 0);
                 WriteToRegisterWithRetry(2307, 0);
                 WriteToRegisterWithRetry(2308, 0);
+                WriteToRegisterWithRetry(2329, TestConfig.K5TestDelay);
+                WriteToRegisterWithRetry(2332, TestConfig.VccStartDelay);
                 WriteToRegisterWithRetry(2333, TestConfig.K5_52V_Min);
                 WriteToRegisterWithRetry(2334, TestConfig.K5_52V_Max);
                 WriteToRegisterWithRetry(2336, TestConfig.K5_55V_Min);
@@ -730,12 +749,11 @@ namespace RTL.ViewModels
                 WriteToRegisterWithRetry(2360, TestConfig.CR2032Max);
                 WriteToRegisterWithRetry(2362, TestConfig.CR2032CpuMin);
                 WriteToRegisterWithRetry(2363, TestConfig.CR2032CpuMax);
-                WriteToRegisterWithRetry(2365, (ushort)TestConfig.DutTamperTest); // TAMPER_STATUS_MIN
-                WriteToRegisterWithRetry(2366, (ushort)TestConfig.DutTamperLedMin); // TAMPER_STATUS_MAX
-                WriteToRegisterWithRetry(2368, (ushort)TestConfig.DutTamperLedMin);
-                WriteToRegisterWithRetry(2369, (ushort)TestConfig.DutTamperLedMax);
-                WriteToRegisterWithRetry(2329, (ushort)TestConfig.K5TestDelay);
-                WriteToRegisterWithRetry(2332, TestConfig.VccStartDelay);
+                WriteToRegisterWithRetry(2365, TestConfig.DutTamperStatusMin); // TAMPER_STATUS_MIN
+                WriteToRegisterWithRetry(2366, TestConfig.DutTamperStatusMax); // TAMPER_STATUS_MAX
+                WriteToRegisterWithRetry(2368, TestConfig.DutTamperLedMin);
+                WriteToRegisterWithRetry(2369, TestConfig.DutTamperLedMax);
+
 
                 // Инициализируем новый отчёт
                 //ReportGenerator.InitializeNewReportFile(Config.ReportPath);
@@ -751,6 +769,7 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+
         private async Task<bool> StartTestingAsync(CancellationToken cancellationToken)
         {
             try
@@ -759,87 +778,85 @@ namespace RTL.ViewModels
 
                 // Подтест 1: VMAIN
                 if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage1K5, cancellationToken))
+                {
+                    await StopHard();
                     return false;
+                }
                 if (cancellationToken.IsCancellationRequested) return false;
 
                 // Подтест 2: VMAIN + VRES
                 if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
+                {
+                    await StopHard();
                     return false;
+                }
                 if (cancellationToken.IsCancellationRequested) return false;
 
                 // Подтест 3: VRES
                 if (!await RunSubTestK5Async(2327, () => StandRegisters.K5Stage3Status, "VRES", ReportModel.Stage3K5, cancellationToken))
+                {
+                    await StopHard();
                     return false;
+                }
                 if (cancellationToken.IsCancellationRequested) return false;
 
-                IsK5TestPassed = true;
+                // Подтест 2: VMAIN + VRES
+                if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
+                {
+                    await StopHard();
+                    return false;
+                }
+                if (cancellationToken.IsCancellationRequested) return false;
 
+                // VMAIN 2 
+                if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage4K5, cancellationToken))
+                {
+                    await StopHard();
+                    return false;
+                }
+                if (cancellationToken.IsCancellationRequested) return false;
+
+
+                IsK5TestPassed = true;
 
                 //  VCC
                 if (!await RunVCCTestAsync(cancellationToken))
                 {
                     _logger.LogToUser("Тест VCC завершен с ошибкой.", LogLevel.Error);
+                    await StopHard();
                     return false;
                 }
+
                 // FLASH прошивка
                 if (!await StartProgrammingAsync(cancellationToken))
                 {
                     _logger.LogToUser("Прошивка завершена с ошибкой", LogLevel.Error);
-                    return false;
-                }
-                // Ожидание загрузки DUT после прошивки
-                if (!await WaitForDUTReadyAsync(cancellationToken, 30, 180))
-                {
-                    _logger.LogToUser("DUT не готов после прошивки.", LogLevel.Error);
+                    await StopHard();
                     return false;
                 }
 
-                // SENSOR1
-                if (TestConfig.DutSensor1Test == 1)
+                // DUT
+                if (IsDutSelfTestEnabled)
                 {
-                    if (!await RunSensorTestAsync(2303, "sensor1", cancellationToken))
+                    _logger.LogToUser("Запуск самотестирования DUT...", LogLevel.Info);
+                    if (!await RunDutSelfTestAsync(cancellationToken))
                     {
-                        _logger.LogToUser("Тест SENSOR1 завершился с ошибкой.", LogLevel.Error);
+                        _logger.LogToUser("Самотестирование DUT завершилось с ошибкой.", LogLevel.Error);
+                        await StopHard();
                         return false;
                     }
                 }
                 else
                 {
-                    _logger.LogToUser("Тест SENSOR1 пропущен (отключен в конфигурации).", LogLevel.Info);
+                    _logger.LogToUser("Самотестирование DUT отключено, пропускаем.", LogLevel.Info);
                 }
-
-                if (cancellationToken.IsCancellationRequested) return false;
-
-                // SENSOR2
-                if (TestConfig.DutSensor2Test == 1)
-                {
-                    if (!await RunSensorTestAsync(2304, "sensor2", cancellationToken))
-                    {
-                        _logger.LogToUser("Тест SENSOR2 завершился с ошибкой.", LogLevel.Error);
-                        return false;
-                    }
-                }
-                else
-                {
-                    _logger.LogToUser("Тест SENSOR2 пропущен (отключен в конфигурации).", LogLevel.Info);
-                }
-
-                // RELAY
-                if (!await RunRelayTestAsync(2306, cancellationToken))
-                {
-                    _logger.LogToUser("Тест RELAY завершился с ошибкой.", LogLevel.Error);
-                    return false;
-                }
-
-
-
-
 
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования: {ex.Message}", LogLevel.Error);
+                await StopHard();
                 return false;
             }
             finally
@@ -849,10 +866,12 @@ namespace RTL.ViewModels
         }
 
 
+
         #region K5
 
         private async Task<bool> RunSubTestK5Async(ushort startRegister, Func<ushort> getStatus, string testName, StageK5TestReport report, CancellationToken cancellationToken)
         {
+            await Task.Delay(2000);
             try
             {
                 // Проверяем, включен ли тест K5 в профиле
@@ -980,7 +999,7 @@ namespace RTL.ViewModels
         {
             if (!TestConfig.IsFlashProgrammingEnabled)
             {
-                _logger.LogToUser("Прошивка отключена в настройках.", LogLevel.Warning);
+                _logger.LogToUser("Прошивка FLASH отключена в настройках.", LogLevel.Warning);
                 return true;
             }
 
@@ -1113,6 +1132,170 @@ namespace RTL.ViewModels
 
         #endregion прошивка
         #region Dut тесты
+
+        public bool IsDutSelfTestEnabled => TestConfig.IsDutSelfTestEnabled &&
+                                            (TestConfig.DutSelfTest ||
+                                            TestConfig.DutSensor1Test || 
+                                            TestConfig.DutSensor2Test ||
+                                            TestConfig.DutRelayTest || 
+                                            TestConfig.DutTamperTest ||
+                                            TestConfig.DutPoeTest ||
+                                            TestConfig.DutRs485Test ||
+                                            TestConfig.DutI2CTest);
+        public async Task<bool> RunDutSelfTestAsync(CancellationToken cancellationToken)
+        {
+            if (!IsDutSelfTestEnabled)
+            {
+                _logger.LogToUser("Самотестирование DUT отключено, тест пропущен.", LogLevel.Info);
+                return true; // Возвращаем true, так как тест просто не выполнялся
+            }
+
+            // Ожидание загрузки DUT после прошивки
+            if (!await WaitForDUTReadyAsync(cancellationToken, 30, 180))
+            {
+                _logger.LogToUser("DUT не готов после прошивки.", LogLevel.Error);
+                await StopHard();
+                return false;
+            }
+
+            // Самотестирование
+            if (TestConfig.DutSelfTest) 
+            {
+                if (!await RunSelfTestAsync(cancellationToken))
+                {
+                    _logger.LogToUser("Самотестирование завершилось с ошибкой.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Самотестирование пропущено (отключено в конфигурации).", LogLevel.Info);
+            }
+
+
+            // SENSOR1
+            if (TestConfig.DutSensor1Test)
+            {
+                if (!await RunSensorTestAsync(2303, "sensor1", cancellationToken))
+                {
+                    _logger.LogToUser("Тест SENSOR1 завершился с ошибкой.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Тест SENSOR1 пропущен (отключен в конфигурации).", LogLevel.Info);
+            }
+
+            if (cancellationToken.IsCancellationRequested) return false;
+
+            // SENSOR2
+            if (TestConfig.DutSensor2Test)
+            {
+                if (!await RunSensorTestAsync(2304, "sensor2", cancellationToken))
+                {
+                    _logger.LogToUser("Тест SENSOR2 завершился с ошибкой.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Тест SENSOR2 пропущен (отключен в конфигурации).", LogLevel.Info);
+            }
+
+            // RELAY
+            if (TestConfig.DutRelayTest)
+            {
+                if (!await RunRelayTestAsync(2306, cancellationToken))
+                {
+                    _logger.LogToUser("Тест RELAY завершился с ошибкой.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Тест RELAY пропущен (отключен в конфигурации).", LogLevel.Info);
+            }
+
+            // TAMPER
+            if (TestConfig.DutTamperTest)
+            {
+                if (!await RunTamperTestAsync(cancellationToken))
+                {
+                    _logger.LogToUser("Тестирование TAMPER завершилось с ошибкой.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Тест TAMPER пропущен (отключен в конфигурации).", LogLevel.Info);
+            }
+
+            // RS485
+            if (TestConfig.DutRs485Test)
+            {
+                if (!await RunRS485TestAsync(cancellationToken))
+                {
+                    _logger.LogToUser("Тестирование RS485 завершилось с ошибкой.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Тест RS485 пропущен (отключен в конфигурации).", LogLevel.Info);
+            }
+
+            // I2C
+            if (TestConfig.DutI2CTest)
+            {
+                if (!await RunI2CTestAsync(cancellationToken))
+                {
+                    _logger.LogToUser("Тестирование I2C завершилось с ошибкой.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Тест I2C пропущен (отключен в конфигурации).", LogLevel.Info);
+            }
+
+            // POE
+            if (TestConfig.DutPoeTest)
+            {
+                if (!await RunPoETestAsync(cancellationToken))
+                {
+                    _logger.LogToUser("Тестирование POE завершилось с ошибкой.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Тест POE пропущен (отключен в конфигурации).", LogLevel.Info);
+            }
+
+            return true;
+        }
+
+
+        #region Самотестирование
+        private async Task<bool> RunSelfTestAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogToUser("Заглушка самотестирования: выполнение не предусмотрено.", LogLevel.Info);
+            await Task.Delay(500, cancellationToken); // Имитация выполнения
+            return true; // Всегда успешно
+        }
+
+
+        #endregion Самотестирование 
+
         #region SENSOR 1 + 2 
         private async Task<bool> RunSensorTestAsync(ushort modbusRegister, string sensorName, CancellationToken cancellationToken)
         {
@@ -1176,13 +1359,15 @@ namespace RTL.ViewModels
         #region RELAY
         private async Task<bool> RunRelayTestAsync(ushort relayStatusRegister, CancellationToken cancellationToken)
         {
+            
             try
             {
                 _logger.LogToUser("Тест RELAY запущен...", LogLevel.Info);
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"0\"}'");
                 _logger.Log("Реле переведено в состояние 0 через консоль.", LogLevel.Info);
 
-                await Task.Delay(500);
+
+                await Task.Delay(5000);
                 if (cancellationToken.IsCancellationRequested) return false;
 
                 if (StandRegisters.RelayIn != 0)
@@ -1194,7 +1379,7 @@ namespace RTL.ViewModels
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"1\"}'");
                 _logger.Log("Реле переведено в состояние 1 через консоль.", LogLevel.Info);
 
-                await Task.Delay(500);
+                await Task.Delay(5000);
                 if (cancellationToken.IsCancellationRequested) return false;
 
                 if (StandRegisters.RelayIn != 1)
@@ -1206,7 +1391,7 @@ namespace RTL.ViewModels
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"0\"}'");
                 _logger.Log("Реле возвращено в состояние 0 через консоль.", LogLevel.Info);
 
-                await Task.Delay(1500);
+                await Task.Delay(5000);
                 if (cancellationToken.IsCancellationRequested) return false;
 
                 if (StandRegisters.RelayIn != 0)
@@ -1225,6 +1410,237 @@ namespace RTL.ViewModels
             }
         }
         #endregion RELAY
+        #region TAMPER
+        private async Task<bool> RunTamperTestAsync(CancellationToken cancellationToken)
+        {
+            async Task<bool> VerifyTamperStatus(string expectedStatus, string actionDescription)
+            {
+                _logger.Log($"{actionDescription}: ожидаемое состояние {expectedStatus}. Проверяем...", LogLevel.Info);
+
+                // Получаем текущее состояние Tamper
+                string tamperStatus = await SendConsoleCommandAsync($"ubus call tf_hwsys getParam '{{\"name\":\"tamper\"}}'");
+
+                if (!tamperStatus.Contains($"\"tamper\": \"{expectedStatus}\""))
+                {
+                    _logger.Log($"Несоответствие состояния Tamper: {tamperStatus}. Ожидалось {expectedStatus}. Повторная проверка через 5 секунд...", LogLevel.Warning);
+                    await Task.Delay(5000, cancellationToken);
+
+                    // Повторная проверка
+                    tamperStatus = await SendConsoleCommandAsync($"ubus call tf_hwsys getParam '{{\"name\":\"tamper\"}}'");
+                    if (!tamperStatus.Contains($"\"tamper\": \"{expectedStatus}\""))
+                    {
+                        _logger.Log($"Ошибка: Tamper имеет состояние {tamperStatus}, ожидалось {expectedStatus}.", LogLevel.Error);
+                        return false;
+                    }
+                }
+
+                _logger.Log($"Tamper успешно установлен в {expectedStatus}.", LogLevel.Info);
+                return true;
+            }
+
+            try
+            {
+                _logger.LogToUser("Тестирование датчика вскрытия (Tamper)...", LogLevel.Info);
+
+                // Устанавливаем значение 0 в регистр 2305
+                WriteToRegisterWithRetry(2305, 0);
+                _logger.Log("2305 = 0 (Tamper отключён)", LogLevel.Debug);
+                await Task.Delay(2000, cancellationToken);
+
+                if (!await VerifyTamperStatus("0", "Отключение Tamper"))
+                    return false;
+
+                // Устанавливаем значение 1 в регистр 2305
+                WriteToRegisterWithRetry(2305, 1);
+                _logger.Log("2305 = 1 (Tamper включён)", LogLevel.Debug);
+                await Task.Delay(2000, cancellationToken);
+
+                if (!await VerifyTamperStatus("1", "Включение Tamper"))
+                    return false;
+
+                // Возвращаем значение 0 в регистр 2305
+                WriteToRegisterWithRetry(2305, 0);
+                _logger.Log("2305 = 0 (Tamper отключён)", LogLevel.Debug);
+                await Task.Delay(2000, cancellationToken);
+
+                if (!await VerifyTamperStatus("0", "Отключение Tamper"))
+                    return false;
+
+                _logger.LogToUser("Тестирование датчика вскрытия (Tamper) успешно завершено.", LogLevel.Success);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка во время тестирования Tamper: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+        }
+
+        #endregion TAMPER
+        #region RS485
+
+        private async Task<bool> RunRS485TestAsync(CancellationToken cancellationToken)
+        {
+            async Task<bool> VerifyRS485Status(string expectedStatus, string actionDescription)
+            {
+                _logger.Log($"{actionDescription}: ожидаемое состояние {expectedStatus}. Проверяем...", LogLevel.Info);
+
+                // Отправка команды для проверки состояния RS485
+                string rs485Status = await SendConsoleCommandAsync("ubus call tf_hwsys getParam '{\"name\":\"upsModeAvalible\"}'");
+
+                if (!rs485Status.Contains($"\"upsModeAvalible\": \"{expectedStatus}\""))
+                {
+                    _logger.Log($"Несоответствие состояния RS485: {rs485Status}. Ожидалось {expectedStatus}. Повторная проверка через 5 секунд...", LogLevel.Warning);
+                    await Task.Delay(5000, cancellationToken);
+
+                    // Повторная проверка
+                    rs485Status = await SendConsoleCommandAsync("ubus call tf_hwsys getParam '{\"name\":\"upsModeAvalible\"}'");
+                    if (!rs485Status.Contains($"\"upsModeAvalible\": \"{expectedStatus}\""))
+                    {
+                        _logger.Log($"Ошибка: RS485 имеет состояние {rs485Status}, ожидалось {expectedStatus}.", LogLevel.Error);
+                        return false;
+                    }
+                }
+
+                _logger.Log($"RS485 успешно проверен: состояние {expectedStatus}.", LogLevel.Success);
+                return true;
+            }
+
+            try
+            {
+                _logger.LogToUser("Тестирование RS485...", LogLevel.Info);
+
+                // Проверка состояния RS485 через консоль
+                if (!await VerifyRS485Status("1", "Проверка доступности RS485"))
+                    return false;
+
+                _logger.LogToUser("Тестирование RS485 успешно завершено.", LogLevel.Success);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка во время тестирования RS485: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+        }
+
+        #endregion RS485
+        #region I2C
+        private async Task<bool> RunI2CTestAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogToUser("Тестирование I2C...", LogLevel.Info);
+
+                // Проверка подключения I2C
+                _logger.Log("Проверка подключения I2C...", LogLevel.Info);
+                string sensorConnectedResponse = await SendConsoleCommandAsync("ubus call tf_hwsys getParam '{\"name\":\"sensorConnected\"}'");
+
+                if (!sensorConnectedResponse.Contains("\"sensorConnected\": \"1\""))
+                {
+                    _logger.LogToUser("Ошибка: I2C не подключён.", LogLevel.Error);
+                    return false;
+                }
+
+                _logger.LogToUser("I2C подключён.", LogLevel.Info);
+
+                // Проверка температуры I2C
+                _logger.Log("Проверка температуры I2C...", LogLevel.Info);
+                string sensorTemperatureResponse = await SendConsoleCommandAsync("ubus call tf_hwsys getParam '{\"name\":\"sensorTemperature\"}'");
+
+                // Извлечение температуры
+                double? temperature = ParseTemperature(sensorTemperatureResponse);
+                if (temperature == null)
+                {
+                    _logger.LogToUser("Ошибка: Не удалось извлечь температуру из ответа.", LogLevel.Error);
+                    return false;
+                }
+
+                _logger.LogToUser($"Температура I2C: {temperature} °C.", LogLevel.Info);
+                _logger.LogToUser("Тестирование I2C успешно завершено.", LogLevel.Success);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка во время тестирования I2C: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+        }
+        private double? ParseTemperature(string response)
+        {
+            try
+            {
+                if (response.Length > 75)
+                {
+                    response = response.Substring(59, response.Length - 59 - 16).Trim();
+                    _logger.Log($"Ответ после удаления символов: {response}", LogLevel.Debug);
+                }
+                else
+                {
+                    throw new Exception("Ответ слишком короткий для извлечения JSON.");
+                }
+
+                var jsonObject = Newtonsoft.Json.Linq.JObject.Parse(response);
+                string temperatureString = jsonObject.SelectToken("sensorTemperature")?.ToString();
+
+                if (string.IsNullOrEmpty(temperatureString))
+                {
+                    throw new Exception("Поле sensorTemperature отсутствует в JSON-ответе.");
+                }
+
+                temperatureString = temperatureString.Replace(".", ",");
+
+                if (double.TryParse(temperatureString, out double temperature))
+                {
+                    return temperature;
+                }
+
+                throw new Exception("Не удалось преобразовать значение температуры.");
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка парсинга температуры: {ex.Message}", LogLevel.Error);
+                _logger.Log($"Сырой ответ: {response}", LogLevel.Error);
+                return null;
+            }
+        }
+        #endregion I2C
+        #region POE
+        private async Task<bool> RunPoETestAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.Log("Тестирование PoE...", LogLevel.Info);
+
+                // Выполнение команды для получения информации о PoE
+                string poeResponse = await SendConsoleCommandAsync("ubus call poe info");
+
+                if (string.IsNullOrWhiteSpace(poeResponse))
+                {
+                    _logger.Log("Ошибка: Команда 'ubus call poe info' не вернула ответ.", LogLevel.Error);
+                    return false;
+                }
+
+                _logger.Log($"Получен ответ от PoE: {poeResponse}", LogLevel.Info);
+
+                if (poeResponse.Contains("\"budget\":"))
+                {
+                    _logger.Log("Тестирование PoE успешно завершено.", LogLevel.Success);
+                    return true;
+                }
+
+                _logger.Log("Ошибка: В ответе отсутствует ключ 'budget'.", LogLevel.Error);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка во время тестирования PoE: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+        }
+
+        #endregion POE
 
         private async Task<string> SendConsoleCommandAsync(string command, int timeoutMilliseconds = 5000)
         {
@@ -1275,8 +1691,12 @@ namespace RTL.ViewModels
 
 
 
+
         public RtlSwViewModel(Loggers logger)
         {
+
+
+
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _logger.Log("RtlSwViewModel инициализирован", Loggers.LogLevel.Success);
 
@@ -1301,7 +1721,7 @@ namespace RTL.ViewModels
             ConnectCommand = new AsyncRelayCommand(ToggleConnectionAsync);  // Кнопка "Подключиться к стенду"
             Task.Run(async () => // Автоматическое подключение к стенду
             {
-                await Task.Delay(1000); 
+                await Task.Delay(1000);
                 await ToggleConnectionAsync();
             });
         }
@@ -1315,6 +1735,8 @@ namespace RTL.ViewModels
 
         public void WriteToRegisterWithRetry(ushort register, ushort value, int retries = 3)
         {
+
+            if (IsModbusConnected) { 
             for (int i = 0; i < retries; i++)
             {
                 try
@@ -1331,10 +1753,12 @@ namespace RTL.ViewModels
             }
             _logger.Log($"Не удалось записать значение {value} в регистр {register} после {retries} попыток.", LogLevel.Error);
             throw new Exception($"Не удалось записать значение {value} в регистр {register} после {retries} попыток.");
+            }
         }
 
+        #region  GUI логика
 
-        #region кнопки модбас
+        #region тумблеры модбас
 
         public bool IsV52Enabled
         {
@@ -1349,109 +1773,77 @@ namespace RTL.ViewModels
         public ICommand ToggleV52Command { get; }
 
 
+        #endregion тумблеры модбас
 
-        #endregion кнопки модбас
+        #endregion GUI логика
+
 
         #region отключения
         private async Task StopHard()
         {
             _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
             IsTestRunning = false;
-            //IsStandConnected = false;
-            // Останавливаем стенд (например, сбрасываем питание)
+
+            // Отключаем питание платы
             WriteToRegisterWithRetry(2301, 0);
             WriteToRegisterWithRetry(2302, 0);
 
             await Task.Delay(500); // Даем время на обработку
 
-            _logger.LogToUser("Стенд остановлен.", Loggers.LogLevel.Info);
+            _logger.LogToUser("Питание снято. Плату можно безопасно извлечь из стенда.", Loggers.LogLevel.Info);
+        }
+
+        private async Task DisconnectStand()
+        {
+            _isCancellationRequested = true; // Устанавливаем флаг для прерывания
+            await Task.Delay(500); // Небольшая задержка, чтобы избежать гонки состояний
+
+            DisconnectModbus();
+            IsStandConnected = false;
+            IsModbusConnected = false;
+
+            _logger.LogToUser("Стенд успешно отключен.", Loggers.LogLevel.Info);
         }
 
 
-        private async Task DisconnectAsync()
+        private async Task CloseConnections()
         {
-            _logger.LogToUser("Отключение стенда...", Loggers.LogLevel.Warning);
-            await StopHard();
             try
             {
-                await Task.Delay(5000);
+                // Ожидаем перед отключением
+                await Task.Delay(500);
 
+                // Закрываем COM-порты и Modbus
                 _serialPortCom?.Close();
                 _serialPortCom?.Dispose();
+                _serialPortDut?.Close();
+                _serialPortDut?.Dispose();
                 _modbusMaster?.Dispose();
-                IsModbusConnected = false;
-                IsServerConnected = false;
-                IsStandConnected = false;
 
-                _logger.LogToUser("Стенд успешно отключен.", Loggers.LogLevel.Success);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogToUser($"Ошибка при отключении стенда: {ex.Message}", Loggers.LogLevel.Error);
-            }
-        }
-        public void DisconnectPorts()
-        {
-            try
-            {
-                if (_serialPortCom != null)
-                {
-                    if (_serialPortCom.IsOpen)
-                    {
-                        _serialPortCom.Close();
-                        _logger.LogToUser($"Порт {Properties.Settings.Default.ComSW} уже открыт, закрыт и пробуем подключиться снова.", Loggers.LogLevel.Info);
-                    }
-                    _serialPortCom.Dispose();
-                }
-
-                IsModbusConnected = false;
-
-                _logger.LogToUser("COM-порты отключены", Loggers.LogLevel.Info);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogToUser($"Ошибка при отключении портов: {ex.Message}", Loggers.LogLevel.Error);
-            }
-        }
-        protected override void OnClose()
-        {
-            _logger.LogToUser("Закрытие приложения, отключение портов...", Loggers.LogLevel.Info);
-            
-            IsStandConnected = false;
-            try
-            {
-                if (_serialPortCom != null)
-                {
-                    if (_serialPortCom.IsOpen)
-                    {
-                        _serialPortCom.Close();
-                        _serialPortCom.Dispose();
-                    }
-                }
-                if (_serialPortDut != null)
-                {
-                    if (_serialPortDut.IsOpen)
-                    {
-                        _serialPortDut.Close();
-                        _serialPortDut.Dispose();
-                    }
-                }
-
-
-
-                _modbusMaster?.Dispose();
                 IsModbusConnected = false;
                 IsDutConnected = false;
+                IsStandConnected = false;
 
-                _logger.LogToUser("COM-порты успешно закрыты.", Loggers.LogLevel.Success);
+                _logger.LogToUser("Все соединения закрыты.", Loggers.LogLevel.Info);
             }
             catch (Exception ex)
             {
-                _logger.LogToUser($"Ошибка при закрытии портов: {ex.Message}", Loggers.LogLevel.Error);
+                _logger.LogToUser($"Ошибка при закрытии соединений: {ex.Message}", Loggers.LogLevel.Error);
             }
+        }
 
+        protected override async void OnClose()
+        {
+            _logger.LogToUser("Закрытие приложения. Завершаем работу и отключаем стенд...", Loggers.LogLevel.Info);
+            if (IsStandConnected)
+            {
+                await StopHard(); // Сбрасываем питание
+                await CloseConnections(); // Закрываем соединения
+            }
+            _logger.LogToUser("Приложение закрыто.", Loggers.LogLevel.Success);
             base.OnClose();
         }
+
         #endregion отключения
     }
 }

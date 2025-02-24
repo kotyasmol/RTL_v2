@@ -783,6 +783,9 @@ namespace RTL.ViewModels
         {
             try
             {
+                await FlashMcuAsync(CancellationToken.None);
+
+
                 IsTestRunning = true;
                 ProgressValue += 5;
                 // Подтест 1: VMAIN
@@ -1048,7 +1051,7 @@ namespace RTL.ViewModels
 
 
         #endregion VCC
-        #region прошивка
+        #region прошивка flash
         public async Task<bool> StartProgrammingAsync(CancellationToken cancellationToken)
         {
             if (!TestConfig.IsFlashProgrammingEnabled)
@@ -1210,7 +1213,87 @@ namespace RTL.ViewModels
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        #endregion прошивка
+        #endregion прошивка flash
+
+        #region прошивка 2
+
+        private async Task<bool> FlashMcuAsync(CancellationToken cancellationToken)
+        {
+            if (!TestConfig.IsMcuProgrammingEnabled)
+            {
+                _logger.Log("Прошивка MCU отключена в профиле тестирования.", LogLevel.Warning);
+                return true; // Пропускаем прошивку
+            }
+
+            string flashToolPath = @"C:\Users\user\Downloads\xpack-openocd-0.12.0-6\xpack-openocd-0.12.0-6\flash.bat";
+            string firmwarePath = Properties.Settings.Default.SwdProgramPath; // Берём путь к прошивке из настроек
+
+            if (!File.Exists(flashToolPath))
+            {
+                _logger.Log($"Ошибка: Не найден скрипт прошивки по пути {flashToolPath}.", LogLevel.Error);
+                return false;
+            }
+
+            if (!File.Exists(firmwarePath))
+            {
+                _logger.Log($"Ошибка: Файл прошивки {firmwarePath} не найден.", LogLevel.Error);
+                return false;
+            }
+
+            try
+            {
+                _logger.Log("Включаем питание на стенде перед прошивкой...", LogLevel.Info);
+                WriteToRegisterWithRetry(2301, 1, 3);
+                await Task.Delay(1000, cancellationToken); // Ждём 1 секунду перед прошивкой
+
+                string formattedFirmwarePath = Path.GetFullPath(firmwarePath).Replace("\\", "/");
+
+                _logger.Log($"Запуск прошивки MCU... (Прошивка: {formattedFirmwarePath})", LogLevel.Info);
+
+                var processStartInfo = new ProcessStartInfo
+                {
+                    FileName = flashToolPath,
+                    Arguments = $"\"{formattedFirmwarePath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = @"C:\Users\user\Downloads\xpack-openocd-0.12.0-6\xpack-openocd-0.12.0-6" // <<< Указываем рабочую директорию
+                };
+
+
+                using (var process = new Process { StartInfo = processStartInfo })
+                {
+                    process.OutputDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) _logger.Log(e.Data, LogLevel.Debug); };
+                    process.ErrorDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) _logger.Log(e.Data, LogLevel.Error); };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    await process.WaitForExitAsync(cancellationToken);
+
+                    if (process.ExitCode != 0)
+                    {
+                        _logger.Log($"Ошибка прошивки! Код выхода: {process.ExitCode}", LogLevel.Error);
+                        return false;
+                    }
+
+                    _logger.Log("Прошивка завершена успешно!", LogLevel.Success);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка во время прошивки MCU: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+        }
+
+        #endregion прошивка 2
+
+
+
         #region Dut тесты
 
         public bool IsDutSelfTestEnabled => TestConfig.IsDutSelfTestEnabled &&
@@ -1444,16 +1527,18 @@ namespace RTL.ViewModels
         #region RELAY
         private async Task<bool> RunRelayTestAsync(ushort relayStatusRegister, CancellationToken cancellationToken)
         {
-            
             try
             {
                 _logger.LogToUser("Тест RELAY запущен...", LogLevel.Info);
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"0\"}'");
                 _logger.Log("Реле переведено в состояние 0 через консоль.", LogLevel.Info);
 
-
-                await Task.Delay(5000);
-                if (cancellationToken.IsCancellationRequested) return false;
+                await Task.Delay(5000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                {
+                    _logger.LogToUser("Тест RELAY прерван.", LogLevel.Warning);
+                    return false;
+                }
 
                 if (StandRegisters.RelayIn != 0)
                 {
@@ -1464,8 +1549,12 @@ namespace RTL.ViewModels
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"1\"}'");
                 _logger.Log("Реле переведено в состояние 1 через консоль.", LogLevel.Info);
 
-                await Task.Delay(5000);
-                if (cancellationToken.IsCancellationRequested) return false;
+                await Task.Delay(5000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                {
+                    _logger.LogToUser("Тест RELAY прерван.", LogLevel.Warning);
+                    return false;
+                }
 
                 if (StandRegisters.RelayIn != 1)
                 {
@@ -1476,8 +1565,12 @@ namespace RTL.ViewModels
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"0\"}'");
                 _logger.Log("Реле возвращено в состояние 0 через консоль.", LogLevel.Info);
 
-                await Task.Delay(8000);
-                if (cancellationToken.IsCancellationRequested) return false;
+                await Task.Delay(8000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                {
+                    _logger.LogToUser("Тест RELAY прерван.", LogLevel.Warning);
+                    return false;
+                }
 
                 if (StandRegisters.RelayIn != 0)
                 {
@@ -1504,6 +1597,12 @@ namespace RTL.ViewModels
 
                 for (int attempt = 1; attempt <= 2; attempt++) // Две попытки проверки
                 {
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    {
+                        _logger.LogToUser("Тест Tamper прерван.", LogLevel.Warning);
+                        return false;
+                    }
+
                     string tamperStatus = await SendConsoleCommandAsync($"ubus call tf_hwsys getParam '{{\"name\":\"tamper\"}}'");
 
                     if (tamperStatus.Contains($"\"tamper\": \"{expectedStatus}\""))
@@ -1517,14 +1616,13 @@ namespace RTL.ViewModels
                     if (attempt < 2)
                     {
                         _logger.Log("Ожидание 9 секунд перед повторной проверкой...", LogLevel.Debug);
-                        await Task.Delay(9000); // Даем железу время обработать изменение
+                        await Task.Delay(9000, cancellationToken);
                     }
                 }
 
                 _logger.Log($"Ошибка: Tamper после повторной проверки имеет неверное состояние. Ожидалось {expectedStatus}.", LogLevel.Error);
                 return false;
             }
-
 
             bool CheckRegisterValue(string name, ushort actualValue, ushort minValue, ushort maxValue)
             {
@@ -1552,13 +1650,13 @@ namespace RTL.ViewModels
                 WriteToRegisterWithRetry(2305, 0);
                 _logger.Log("2305 = 0 (Tamper отключён)", LogLevel.Debug);
                 await Task.Delay(5000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
 
                 // 2) Проверяем STATUS_TAMPER (2319)
                 if (!CheckRegisterValue("STATUS_TAMPER", StandRegisters.Status_Tamper, minStatusTamper, maxStatusTamper))
                     return false;
 
                 // 3) Проверяем TAMPER_LED (2320)
-
                 if (!CheckRegisterValue("TAMPER_LED", StandRegisters.Status_Tamper_Led, minTamperLed, maxTamperLed))
                     return false;
 
@@ -1570,6 +1668,7 @@ namespace RTL.ViewModels
                 WriteToRegisterWithRetry(2305, 1);
                 _logger.Log("2305 = 1 (Tamper включён)", LogLevel.Debug);
                 await Task.Delay(5000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
 
                 // 6) Проверяем Tamper через консоль (должно быть 1)
                 if (!await VerifyTamperStatus("1", "Включение Tamper"))
@@ -1579,9 +1678,9 @@ namespace RTL.ViewModels
                 WriteToRegisterWithRetry(2305, 0);
                 _logger.Log("2305 = 0 (Tamper отключён)", LogLevel.Debug);
                 await Task.Delay(5000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
 
                 // 8) Проверяем STATUS_TAMPER (2319)
-
                 if (!CheckRegisterValue("STATUS_TAMPER", StandRegisters.Status_Tamper, minStatusTamper, maxStatusTamper))
                     return false;
 
@@ -1602,7 +1701,6 @@ namespace RTL.ViewModels
                 return false;
             }
         }
-
         #endregion TAMPER
         #region RS485
 

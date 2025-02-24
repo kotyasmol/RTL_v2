@@ -29,8 +29,14 @@ namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
     {
+        private int _progressValue;
+        public int ProgressValue
+        {
+            get => _progressValue;
+            set => SetAndNotify(ref _progressValue, value);
+        }
 
-        public int ProgressSw = 20;
+
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -95,6 +101,9 @@ namespace RTL.ViewModels
             IsStandConnected = true; // Когда подключение начато, обновляем состояние
             try
             {
+                _isCancellationRequested = false;
+
+
                 if (!await TryLoadTestProfileAsync())
                 {
                     _logger.LogToUser("Не удалось загрузить профиль тестирования.", Loggers.LogLevel.Error);
@@ -708,8 +717,6 @@ namespace RTL.ViewModels
 
 
         #endregion мониторинг
-
-
         #region тестирование
 
         private bool _isCancellationRequested;
@@ -754,6 +761,8 @@ namespace RTL.ViewModels
                 WriteToRegisterWithRetry(2368, TestConfig.DutTamperLedMin);
                 WriteToRegisterWithRetry(2369, TestConfig.DutTamperLedMax);
 
+                ProgressValue = 0;
+
 
                 // Инициализируем новый отчёт
                 //ReportGenerator.InitializeNewReportFile(Config.ReportPath);
@@ -775,7 +784,7 @@ namespace RTL.ViewModels
             try
             {
                 IsTestRunning = true;
-
+                ProgressValue += 5;
                 // Подтест 1: VMAIN
                 if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage1K5, cancellationToken))
                 {
@@ -783,7 +792,7 @@ namespace RTL.ViewModels
                     return false;
                 }
                 if (cancellationToken.IsCancellationRequested) return false;
-
+                ProgressValue += 5;
                 // Подтест 2: VMAIN + VRES
                 if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
                 {
@@ -791,7 +800,7 @@ namespace RTL.ViewModels
                     return false;
                 }
                 if (cancellationToken.IsCancellationRequested) return false;
-
+                ProgressValue += 5;
                 // Подтест 3: VRES
                 if (!await RunSubTestK5Async(2327, () => StandRegisters.K5Stage3Status, "VRES", ReportModel.Stage3K5, cancellationToken))
                 {
@@ -799,7 +808,7 @@ namespace RTL.ViewModels
                     return false;
                 }
                 if (cancellationToken.IsCancellationRequested) return false;
-
+                ProgressValue += 5;
                 // Подтест 2: VMAIN + VRES
                 if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
                 {
@@ -807,7 +816,7 @@ namespace RTL.ViewModels
                     return false;
                 }
                 if (cancellationToken.IsCancellationRequested) return false;
-
+                ProgressValue += 5;
                 // VMAIN 2 
                 if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage4K5, cancellationToken))
                 {
@@ -818,7 +827,7 @@ namespace RTL.ViewModels
 
 
                 IsK5TestPassed = true;
-
+                ProgressValue += 5;
                 //  VCC
                 if (!await RunVCCTestAsync(cancellationToken))
                 {
@@ -826,7 +835,7 @@ namespace RTL.ViewModels
                     await StopHard();
                     return false;
                 }
-
+                ProgressValue += 5;
                 // FLASH прошивка
                 if (!await StartProgrammingAsync(cancellationToken))
                 {
@@ -834,7 +843,7 @@ namespace RTL.ViewModels
                     await StopHard();
                     return false;
                 }
-
+                ProgressValue += 5; ///--------------------------------------------------------------возможно убрать 
                 // DUT
                 if (IsDutSelfTestEnabled)
                 {
@@ -875,11 +884,10 @@ namespace RTL.ViewModels
             await Task.Delay(2000);
             try
             {
-                // Проверяем, включен ли тест K5 в профиле
                 if (!TestConfig.IsK5TestEnabled)
                 {
                     _logger.LogToUser($"Тест {testName} пропущен (отключен в профиле).", LogLevel.Warning);
-                    return true; // Возвращаем true, чтобы тест считался успешно пройденным и выполнение продолжилось
+                    return true;
                 }
 
                 _logger.LogToUser($"Тест {testName} запущен...", LogLevel.Info);
@@ -887,14 +895,22 @@ namespace RTL.ViewModels
 
                 while (getStatus() != 1)
                 {
-                    if (cancellationToken.IsCancellationRequested) return false;
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0 )
+                    {
+                        _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
+                        return false;
+                    }
                     await Task.Delay(500);
                 }
 
                 _logger.LogToUser($"Ожидание завершения теста {testName}...", LogLevel.Debug);
                 while (true)
                 {
-                    if (cancellationToken.IsCancellationRequested) return false;
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0 )
+                    {
+                        _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
+                        return false;
+                    }
 
                     await Task.Delay(2000);
                     var status = getStatus();
@@ -902,7 +918,6 @@ namespace RTL.ViewModels
                     {
                         bool success = status == 2;
 
-                        // Сохраняем результаты в модель отчета
                         report.ResultK5 = success;
                         report.V52Report = StandRegisters.V52Report;
                         report.V55Report = StandRegisters.V55Report;
@@ -910,7 +925,6 @@ namespace RTL.ViewModels
                         report.V2048Report = StandRegisters.Ref2048Report;
                         report.V12Report = StandRegisters.V12Report;
 
-                        // Логируем отчёт с переносами строк
                         _logger.LogToUser(
                             $"K5 {testName}: {success} {Environment.NewLine}" +
                             $"55V={report.V55Report}{Environment.NewLine}" +
@@ -931,6 +945,7 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+
         private bool _isK5TestPassed;
         public bool IsK5TestPassed
         {
@@ -952,38 +967,74 @@ namespace RTL.ViewModels
                 }
 
                 _logger.LogToUser("Тест VCC запущен...", LogLevel.Info);
+            restartTest:
                 WriteToRegisterWithRetry(2330, 1);
 
+                // Ожидание запуска теста
                 while (StandRegisters.VCCTestStatus == 0)
                 {
-                    if (cancellationToken.IsCancellationRequested) return false;
-                    await Task.Delay(500);
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    {
+                        _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
+                        return false;
+                    }
+                    await Task.Delay(500, cancellationToken);
                 }
 
                 _logger.LogToUser("Ожидание завершения теста VCC...", LogLevel.Debug);
+
+                // Мониторинг завершения теста
                 while (true)
                 {
-                    if (cancellationToken.IsCancellationRequested) return false;
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    {
+                        _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
+                        return false;
+                    }
 
-                    await Task.Delay(2000);
+                    await Task.Delay(5000, cancellationToken);
                     var status = StandRegisters.VCCTestStatus;
 
-                    if (status == 2 || status == 3)
+                    if (status == 2 || status == 3) // 2 - Успешно, 3 - Ошибка
                     {
                         bool success = status == 2;
 
-                        // Логируем отчёт
                         _logger.LogToUser(
-                            $"VCC Тест: {success}; " +
+                            $"VCC Тест: {(success ? "Успешно" : "Ошибка")}; " +
                             $"3.3V={StandRegisters.V3_3Report}; 1.5V={StandRegisters.V1_5Report}; " +
                             $"1.1V={StandRegisters.V1_1Report}; CR2032={StandRegisters.CR2032Report}; " +
                             $"CR2032 CPU={StandRegisters.CR2032_CPUReport}",
                             success ? LogLevel.Success : LogLevel.Error
                         );
 
+                        if (!success)
+                        {
+                            bool shouldRestart = (StandRegisters.V3_3Report == 0 ||
+                                                  (StandRegisters.V3_3Report >= TestConfig.Vcc3V3Min && StandRegisters.V3_3Report <= TestConfig.Vcc3V3Max)) &&
+                                                 (StandRegisters.V1_5Report == 0 ||
+                                                  (StandRegisters.V1_5Report >= TestConfig.Vcc1V5Min && StandRegisters.V1_5Report <= TestConfig.Vcc1V5Max)) &&
+                                                 (StandRegisters.V1_1Report == 0 ||
+                                                  (StandRegisters.V1_1Report >= TestConfig.Vcc1V1Min && StandRegisters.V1_1Report <= TestConfig.Vcc1V1Max)) &&
+                                                 (StandRegisters.CR2032Report == 0 ||
+                                                  (StandRegisters.CR2032Report >= TestConfig.CR2032Min && StandRegisters.CR2032Report <= TestConfig.CR2032Max)) &&
+                                                 (StandRegisters.CR2032_CPUReport == 0 ||
+                                                  (StandRegisters.CR2032_CPUReport >= TestConfig.CR2032CpuMin && StandRegisters.CR2032_CPUReport <= TestConfig.CR2032CpuMax));
+
+                            if (shouldRestart)
+                            {
+                                _logger.LogToUser("Тест VCC не прошел, но значения в допустимых пределах. Повторный запуск...", LogLevel.Warning);
+                                goto restartTest;
+                            }
+                        }
+
                         return success;
                     }
                 }
+            }
+            catch (TaskCanceledException)
+            {
+                _logger.LogToUser("Тест VCC отменён.", LogLevel.Warning);
+                return false;
             }
             catch (Exception ex)
             {
@@ -991,6 +1042,8 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+
+
 
 
 
@@ -1026,7 +1079,8 @@ namespace RTL.ViewModels
 
             try
             {
-                if (cancellationToken.IsCancellationRequested) return false;
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    throw new OperationCanceledException("Прошивка отменена пользователем.");
 
                 programProcess = Process.GetProcessesByName("Xgpro").FirstOrDefault();
                 if (programProcess == null)
@@ -1039,6 +1093,9 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Программа уже запущена. Переключение фокуса...", LogLevel.Info);
                 }
+
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    throw new OperationCanceledException("Прошивка отменена пользователем.");
 
                 IntPtr hWnd = programProcess.MainWindowHandle;
                 if (hWnd == IntPtr.Zero)
@@ -1056,12 +1113,14 @@ namespace RTL.ViewModels
                 sim.Keyboard.KeyPress(VirtualKeyCode.VK_O);
                 await Task.Delay(2000, cancellationToken);
 
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    throw new OperationCanceledException("Прошивка отменена пользователем.");
+
                 string fileName = Path.GetFileName(projectPath);
                 _logger.LogToUser($"Вставка имени файла: {fileName}", LogLevel.Debug);
 
                 try
                 {
-                    // Создаём новый STA-поток для работы с буфером обмена
                     var staThread = new Thread(() =>
                     {
                         try
@@ -1076,7 +1135,7 @@ namespace RTL.ViewModels
 
                     staThread.SetApartmentState(ApartmentState.STA);
                     staThread.Start();
-                    staThread.Join(); // Ждём завершения потока
+                    staThread.Join();
 
                     sim.Keyboard.ModifiedKeyStroke(VirtualKeyCode.CONTROL, VirtualKeyCode.VK_V);
                     await Task.Delay(500, cancellationToken);
@@ -1096,12 +1155,22 @@ namespace RTL.ViewModels
                 sim.Keyboard.KeyPress(VirtualKeyCode.VK_P);
                 await Task.Delay(5000, cancellationToken);
 
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    throw new OperationCanceledException("Прошивка отменена пользователем.");
+
                 sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
                 await Task.Delay(500, cancellationToken);
                 sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
 
                 _logger.LogToUser("Прошивка запущена. Ожидание завершения...", LogLevel.Info);
-                await Task.Delay(delay, cancellationToken);
+
+                for (int i = 0; i < delay / 1000; i++)
+                {
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                        throw new OperationCanceledException("Прошивка отменена пользователем.");
+
+                    await Task.Delay(1000, cancellationToken);
+                }
 
                 _logger.LogToUser("Прошивка завершена. Закрытие программы прошивки...", LogLevel.Info);
                 if (programProcess != null && !programProcess.HasExited)
@@ -1115,6 +1184,16 @@ namespace RTL.ViewModels
                 _logger.LogToUser("Переключение обратно на стенд завершено.", LogLevel.Info);
 
                 return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Прошивка была прервана пользователем.", LogLevel.Warning);
+                if (programProcess != null && !programProcess.HasExited)
+                {
+                    programProcess.Kill();
+                    _logger.LogToUser("Программа прошивки принудительно закрыта из-за отмены.", LogLevel.Warning);
+                }
+                return false;
             }
             catch (Exception ex)
             {
@@ -1150,7 +1229,7 @@ namespace RTL.ViewModels
                 _logger.LogToUser("Самотестирование DUT отключено, тест пропущен.", LogLevel.Info);
                 return true; // Возвращаем true, так как тест просто не выполнялся
             }
-
+            ProgressValue += 5;
             // Ожидание загрузки DUT после прошивки
             if (!await WaitForDUTReadyAsync(cancellationToken, 30, 180))
             {
@@ -1158,7 +1237,7 @@ namespace RTL.ViewModels
                 await StopHard();
                 return false;
             }
-
+            ProgressValue += 5;
             // Самотестирование
             if (TestConfig.DutSelfTest) 
             {
@@ -1174,7 +1253,7 @@ namespace RTL.ViewModels
                 _logger.LogToUser("Самотестирование пропущено (отключено в конфигурации).", LogLevel.Info);
             }
 
-
+            ProgressValue += 5;
             // SENSOR1
             if (TestConfig.DutSensor1Test)
             {
@@ -1191,7 +1270,7 @@ namespace RTL.ViewModels
             }
 
             if (cancellationToken.IsCancellationRequested) return false;
-
+            ProgressValue += 5;
             // SENSOR2
             if (TestConfig.DutSensor2Test)
             {
@@ -1206,7 +1285,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест SENSOR2 пропущен (отключен в конфигурации).", LogLevel.Info);
             }
-
+            ProgressValue += 5;
             // RELAY
             if (TestConfig.DutRelayTest)
             {
@@ -1221,7 +1300,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест RELAY пропущен (отключен в конфигурации).", LogLevel.Info);
             }
-
+            ProgressValue += 5;
             // TAMPER
             if (TestConfig.DutTamperTest)
             {
@@ -1236,7 +1315,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест TAMPER пропущен (отключен в конфигурации).", LogLevel.Info);
             }
-
+            ProgressValue += 5;
             // RS485
             if (TestConfig.DutRs485Test)
             {
@@ -1251,7 +1330,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест RS485 пропущен (отключен в конфигурации).", LogLevel.Info);
             }
-
+            ProgressValue += 5;
             // I2C
             if (TestConfig.DutI2CTest)
             {
@@ -1266,7 +1345,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест I2C пропущен (отключен в конфигурации).", LogLevel.Info);
             }
-
+            ProgressValue += 5;
             // POE
             if (TestConfig.DutPoeTest)
             {
@@ -1297,6 +1376,7 @@ namespace RTL.ViewModels
 
         #endregion Самотестирование 
         #region SENSOR 1 + 2 
+
         private async Task<bool> RunSensorTestAsync(ushort modbusRegister, string sensorName, CancellationToken cancellationToken)
         {
             try
@@ -1306,16 +1386,19 @@ namespace RTL.ViewModels
                 // Устанавливаем 0 в регистр
                 WriteToRegisterWithRetry(modbusRegister, 0);
                 await Task.Delay(2000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
                 if (!await VerifySensorStatus(sensorName, "0", cancellationToken)) return false;
 
                 // Устанавливаем 1 в регистр
                 WriteToRegisterWithRetry(modbusRegister, 1);
                 await Task.Delay(2000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
                 if (!await VerifySensorStatus(sensorName, "1", cancellationToken)) return false;
 
                 // Возвращаем 0
                 WriteToRegisterWithRetry(modbusRegister, 0);
                 await Task.Delay(2000, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
                 if (!await VerifySensorStatus(sensorName, "0", cancellationToken)) return false;
 
                 _logger.LogToUser($"Тестирование {sensorName} успешно завершено.", LogLevel.Success);
@@ -1332,7 +1415,7 @@ namespace RTL.ViewModels
         {
             _logger.Log($"Проверка состояния сенсора {sensorName}: ожидаемое состояние {expectedStatus}.", LogLevel.Info);
 
-            if (cancellationToken.IsCancellationRequested) return false;
+            if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
 
             string sensorStatus = await SendConsoleCommandAsync($"ubus call tf_hwsys getParam '{{\"name\":\"{sensorName}\"}}'");
 
@@ -1341,7 +1424,7 @@ namespace RTL.ViewModels
                 _logger.Log($"Несоответствие состояния {sensorName}: {sensorStatus}. Ожидалось {expectedStatus}. Повторная проверка через 5 секунд...", LogLevel.Warning);
 
                 await Task.Delay(5000, cancellationToken);
-                if (cancellationToken.IsCancellationRequested) return false;
+                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
 
                 sensorStatus = await SendConsoleCommandAsync($"ubus call tf_hwsys getParam '{{\"name\":\"{sensorName}\"}}'");
 
@@ -1355,6 +1438,8 @@ namespace RTL.ViewModels
             _logger.Log($"{sensorName} успешно установлен в {expectedStatus}.", LogLevel.Info);
             return true;
         }
+
+
         #endregion SENSOR 1 + 2 
         #region RELAY
         private async Task<bool> RunRelayTestAsync(ushort relayStatusRegister, CancellationToken cancellationToken)

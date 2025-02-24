@@ -30,7 +30,7 @@ namespace RTL.ViewModels
     public class RtlSwViewModel : Screen
     {
 
-
+        public int ProgressSw = 20;
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -841,16 +841,17 @@ namespace RTL.ViewModels
                     _logger.LogToUser("Запуск самотестирования DUT...", LogLevel.Info);
                     if (!await RunDutSelfTestAsync(cancellationToken))
                     {
-                        _logger.LogToUser("Самотестирование DUT завершилось с ошибкой.", LogLevel.Error);
+                        _logger.LogToUser("Тестирование DUT завершилось с ошибкой.", LogLevel.Error);
                         await StopHard();
                         return false;
                     }
                 }
                 else
                 {
-                    _logger.LogToUser("Самотестирование DUT отключено, пропускаем.", LogLevel.Info);
+                    _logger.LogToUser("Тестирование DUT отключено, пропускаем.", LogLevel.Info);
                 }
 
+                await StopHard();
                 return true;
             }
             catch (Exception ex)
@@ -1295,7 +1296,6 @@ namespace RTL.ViewModels
 
 
         #endregion Самотестирование 
-
         #region SENSOR 1 + 2 
         private async Task<bool> RunSensorTestAsync(ushort modbusRegister, string sensorName, CancellationToken cancellationToken)
         {
@@ -1391,7 +1391,7 @@ namespace RTL.ViewModels
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"0\"}'");
                 _logger.Log("Реле возвращено в состояние 0 через консоль.", LogLevel.Info);
 
-                await Task.Delay(5000);
+                await Task.Delay(8000);
                 if (cancellationToken.IsCancellationRequested) return false;
 
                 if (StandRegisters.RelayIn != 0)
@@ -1411,30 +1411,45 @@ namespace RTL.ViewModels
         }
         #endregion RELAY
         #region TAMPER
-        private async Task<bool> RunTamperTestAsync(CancellationToken cancellationToken)
+        public async Task<bool> RunTamperTestAsync(CancellationToken cancellationToken)
         {
             async Task<bool> VerifyTamperStatus(string expectedStatus, string actionDescription)
             {
                 _logger.Log($"{actionDescription}: ожидаемое состояние {expectedStatus}. Проверяем...", LogLevel.Info);
 
-                // Получаем текущее состояние Tamper
-                string tamperStatus = await SendConsoleCommandAsync($"ubus call tf_hwsys getParam '{{\"name\":\"tamper\"}}'");
-
-                if (!tamperStatus.Contains($"\"tamper\": \"{expectedStatus}\""))
+                for (int attempt = 1; attempt <= 2; attempt++) // Две попытки проверки
                 {
-                    _logger.Log($"Несоответствие состояния Tamper: {tamperStatus}. Ожидалось {expectedStatus}. Повторная проверка через 5 секунд...", LogLevel.Warning);
-                    await Task.Delay(5000, cancellationToken);
+                    string tamperStatus = await SendConsoleCommandAsync($"ubus call tf_hwsys getParam '{{\"name\":\"tamper\"}}'");
 
-                    // Повторная проверка
-                    tamperStatus = await SendConsoleCommandAsync($"ubus call tf_hwsys getParam '{{\"name\":\"tamper\"}}'");
-                    if (!tamperStatus.Contains($"\"tamper\": \"{expectedStatus}\""))
+                    if (tamperStatus.Contains($"\"tamper\": \"{expectedStatus}\""))
                     {
-                        _logger.Log($"Ошибка: Tamper имеет состояние {tamperStatus}, ожидалось {expectedStatus}.", LogLevel.Error);
-                        return false;
+                        _logger.Log($"Tamper успешно установлен в {expectedStatus}.", LogLevel.Info);
+                        return true;
+                    }
+
+                    _logger.Log($"Попытка {attempt}: Tamper имеет состояние {tamperStatus}, ожидалось {expectedStatus}.", LogLevel.Warning);
+
+                    if (attempt < 2)
+                    {
+                        _logger.Log("Ожидание 9 секунд перед повторной проверкой...", LogLevel.Debug);
+                        await Task.Delay(9000); // Даем железу время обработать изменение
                     }
                 }
 
-                _logger.Log($"Tamper успешно установлен в {expectedStatus}.", LogLevel.Info);
+                _logger.Log($"Ошибка: Tamper после повторной проверки имеет неверное состояние. Ожидалось {expectedStatus}.", LogLevel.Error);
+                return false;
+            }
+
+
+            bool CheckRegisterValue(string name, ushort actualValue, ushort minValue, ushort maxValue)
+            {
+                if (actualValue < minValue || actualValue > maxValue)
+                {
+                    _logger.Log($"Ошибка: {name} = {actualValue}, ожидалось {minValue}-{maxValue}.", LogLevel.Error);
+                    return false;
+                }
+
+                _logger.Log($"{name} = {actualValue} в допустимом диапазоне {minValue}-{maxValue}.", LogLevel.Info);
                 return true;
             }
 
@@ -1442,27 +1457,54 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тестирование датчика вскрытия (Tamper)...", LogLevel.Info);
 
-                // Устанавливаем значение 0 в регистр 2305
+                // Получаем диапазоны из профиля тестирования
+                ushort minStatusTamper = TestConfig.DutTamperStatusMin;
+                ushort maxStatusTamper = TestConfig.DutTamperStatusMax;
+                ushort minTamperLed = TestConfig.DutTamperLedMin;
+                ushort maxTamperLed = TestConfig.DutTamperLedMax;
+
+                // 1) Отключаем Tamper (2305 = 0)
                 WriteToRegisterWithRetry(2305, 0);
                 _logger.Log("2305 = 0 (Tamper отключён)", LogLevel.Debug);
-                await Task.Delay(2000, cancellationToken);
+                await Task.Delay(5000, cancellationToken);
 
+                // 2) Проверяем STATUS_TAMPER (2319)
+                if (!CheckRegisterValue("STATUS_TAMPER", StandRegisters.Status_Tamper, minStatusTamper, maxStatusTamper))
+                    return false;
+
+                // 3) Проверяем TAMPER_LED (2320)
+
+                if (!CheckRegisterValue("TAMPER_LED", StandRegisters.Status_Tamper_Led, minTamperLed, maxTamperLed))
+                    return false;
+
+                // 4) Проверяем Tamper через консоль (должно быть 0)
                 if (!await VerifyTamperStatus("0", "Отключение Tamper"))
                     return false;
 
-                // Устанавливаем значение 1 в регистр 2305
+                // 5) Включаем Tamper (2305 = 1)
                 WriteToRegisterWithRetry(2305, 1);
                 _logger.Log("2305 = 1 (Tamper включён)", LogLevel.Debug);
-                await Task.Delay(2000, cancellationToken);
+                await Task.Delay(5000, cancellationToken);
 
+                // 6) Проверяем Tamper через консоль (должно быть 1)
                 if (!await VerifyTamperStatus("1", "Включение Tamper"))
                     return false;
 
-                // Возвращаем значение 0 в регистр 2305
+                // 7) Отключаем Tamper (2305 = 0)
                 WriteToRegisterWithRetry(2305, 0);
                 _logger.Log("2305 = 0 (Tamper отключён)", LogLevel.Debug);
-                await Task.Delay(2000, cancellationToken);
+                await Task.Delay(5000, cancellationToken);
 
+                // 8) Проверяем STATUS_TAMPER (2319)
+
+                if (!CheckRegisterValue("STATUS_TAMPER", StandRegisters.Status_Tamper, minStatusTamper, maxStatusTamper))
+                    return false;
+
+                // 9) Проверяем TAMPER_LED (2320)
+                if (!CheckRegisterValue("TAMPER_LED", StandRegisters.Status_Tamper_Led, minTamperLed, maxTamperLed))
+                    return false;
+
+                // 10) Проверяем Tamper через консоль (должно быть 0)
                 if (!await VerifyTamperStatus("0", "Отключение Tamper"))
                     return false;
 
@@ -1611,14 +1653,14 @@ namespace RTL.ViewModels
         {
             try
             {
-                _logger.Log("Тестирование PoE...", LogLevel.Info);
+                _logger.LogToUser("Тестирование PoE...", LogLevel.Info);
 
                 // Выполнение команды для получения информации о PoE
                 string poeResponse = await SendConsoleCommandAsync("ubus call poe info");
 
                 if (string.IsNullOrWhiteSpace(poeResponse))
                 {
-                    _logger.Log("Ошибка: Команда 'ubus call poe info' не вернула ответ.", LogLevel.Error);
+                    _logger.LogToUser("Ошибка: Команда 'ubus call poe info' не вернула ответ.", LogLevel.Error);
                     return false;
                 }
 
@@ -1626,7 +1668,7 @@ namespace RTL.ViewModels
 
                 if (poeResponse.Contains("\"budget\":"))
                 {
-                    _logger.Log("Тестирование PoE успешно завершено.", LogLevel.Success);
+                    _logger.LogToUser("Тестирование PoE успешно завершено.", LogLevel.Success);
                     return true;
                 }
 
@@ -1635,7 +1677,7 @@ namespace RTL.ViewModels
             }
             catch (Exception ex)
             {
-                _logger.Log($"Ошибка во время тестирования PoE: {ex.Message}", LogLevel.Error);
+                _logger.LogToUser($"Ошибка во время тестирования PoE: {ex.Message}", LogLevel.Error);
                 return false;
             }
         }

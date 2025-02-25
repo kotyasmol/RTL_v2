@@ -142,5 +142,17 @@ namespace RTL.Properties {
                 this["SwdProgramPath"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string SwdFirmwarePath {
+            get {
+                return ((string)(this["SwdFirmwarePath"]));
+            }
+            set {
+                this["SwdFirmwarePath"] = value;
+            }
+        }
     }
 }

@@ -314,8 +314,8 @@ namespace RTL.ViewModels
 
         public async Task<bool> WaitForDUTReadyAsync(CancellationToken cancellationToken, int noLogTimeoutSeconds = 100, int maxWaitTimeSeconds = 1200)
         {
-            WriteToRegisterWithRetry(2301, 0);
-            WriteToRegisterWithRetry(2301, 1);
+            await WriteToRegisterWithRetryAsync(2301, 0);
+            await WriteToRegisterWithRetryAsync(2301, 1);
             await Task.Delay(2000, cancellationToken);
 
             try
@@ -563,6 +563,17 @@ namespace RTL.ViewModels
             {
                 try
                 {
+                    if (!IsModbusConnected)
+                    {
+                        _logger.Log("Modbus отключен. Попытка переподключения...", LogLevel.Warning);
+                        if (!await TryReconnectModbusAsync())
+                        {
+                            _logger.Log("Не удалось переподключиться к Modbus.", LogLevel.Error);
+                            await HandleModbusDisconnection();
+                            return;
+                        }
+                    }
+
                     // Читаем регистры Modbus (85 регистров, начиная с 2300)
                     var registers = await _modbusMaster.ReadHoldingRegistersAsync(1, 2300, 85);
                     #region обновление значений
@@ -673,6 +684,7 @@ namespace RTL.ViewModels
                     StandRegisters.RS485Enable = registers[83];
                     StandRegisters.RS485RxOK = registers[84];
                     #endregion обновление значений
+
                     if (StandRegisters.RunBtn == 1 && !IsTestRunning && !_testCompleted)
                     {
                         _testCancellationTokenSource?.Cancel();
@@ -698,13 +710,31 @@ namespace RTL.ViewModels
                 catch (Exception ex)
                 {
                     _logger.LogToUser($"Ошибка при чтении регистров Modbus: {ex.Message}", Loggers.LogLevel.Error);
+                    IsModbusConnected = false;
+                    await Task.Delay(2000); // Ждём перед новой попыткой
                 }
 
                 await Task.Delay(1000);
             }
         }
+        private async Task HandleModbusDisconnection()
+        {
+            _logger.LogToUser("Modbus недоступен. Отключаем тестирование...", Loggers.LogLevel.Warning);
+            IsTestRunning = false;
 
+            _logger.LogToUser("Снятие питания...", Loggers.LogLevel.Warning);
+            try
+            {
+                await WriteToRegisterWithRetryAsync(2301, 0);
+                await WriteToRegisterWithRetryAsync(2302, 0);
+            }
+            catch
+            {
+                _logger.LogToUser("Ошибка при снятии питания! Проверьте соединение.", Loggers.LogLevel.Error);
+            }
 
+            _logger.LogToUser("Отключите плату вручную.", Loggers.LogLevel.Warning);
+        }
 
         private bool _isTestRunning;
         public bool IsTestRunning
@@ -725,41 +755,41 @@ namespace RTL.ViewModels
         {
             try
             {
-                WriteToRegisterWithRetry(2301, 0);
-                WriteToRegisterWithRetry(2302, 0);
-                WriteToRegisterWithRetry(2303, 0);
-                WriteToRegisterWithRetry(2304, 0);
-                WriteToRegisterWithRetry(2305, 0);
-                WriteToRegisterWithRetry(2307, 0);
-                WriteToRegisterWithRetry(2308, 0);
-                WriteToRegisterWithRetry(2329, TestConfig.K5TestDelay);
-                WriteToRegisterWithRetry(2332, TestConfig.VccStartDelay);
-                WriteToRegisterWithRetry(2333, TestConfig.K5_52V_Min);
-                WriteToRegisterWithRetry(2334, TestConfig.K5_52V_Max);
-                WriteToRegisterWithRetry(2336, TestConfig.K5_55V_Min);
-                WriteToRegisterWithRetry(2337, TestConfig.K5_55V_Max);
-                WriteToRegisterWithRetry(2339, TestConfig.VoutMin);
-                WriteToRegisterWithRetry(2340, TestConfig.VoutMax);
-                WriteToRegisterWithRetry(2341, TestConfig.VoutVresMin);
-                WriteToRegisterWithRetry(2342, TestConfig.VoutVresMax);
-                WriteToRegisterWithRetry(2344, TestConfig.VrefMin);
-                WriteToRegisterWithRetry(2345, TestConfig.VrefMax);
-                WriteToRegisterWithRetry(2347, TestConfig.V12Min);
-                WriteToRegisterWithRetry(2348, TestConfig.V12Max);
-                WriteToRegisterWithRetry(2350, TestConfig.Vcc3V3Min);
-                WriteToRegisterWithRetry(2351, TestConfig.Vcc3V3Max);
-                WriteToRegisterWithRetry(2353, TestConfig.Vcc1V5Min);
-                WriteToRegisterWithRetry(2354, TestConfig.Vcc1V5Max);
-                WriteToRegisterWithRetry(2356, TestConfig.Vcc1V1Min);
-                WriteToRegisterWithRetry(2357, TestConfig.Vcc1V1Max);
-                WriteToRegisterWithRetry(2359, TestConfig.CR2032Min);
-                WriteToRegisterWithRetry(2360, TestConfig.CR2032Max);
-                WriteToRegisterWithRetry(2362, TestConfig.CR2032CpuMin);
-                WriteToRegisterWithRetry(2363, TestConfig.CR2032CpuMax);
-                WriteToRegisterWithRetry(2365, TestConfig.DutTamperStatusMin); // TAMPER_STATUS_MIN
-                WriteToRegisterWithRetry(2366, TestConfig.DutTamperStatusMax); // TAMPER_STATUS_MAX
-                WriteToRegisterWithRetry(2368, TestConfig.DutTamperLedMin);
-                WriteToRegisterWithRetry(2369, TestConfig.DutTamperLedMax);
+                await WriteToRegisterWithRetryAsync(2301, 0);
+                await WriteToRegisterWithRetryAsync(2302, 0);
+                await WriteToRegisterWithRetryAsync(2303, 0);
+                await WriteToRegisterWithRetryAsync(2304, 0);
+                await WriteToRegisterWithRetryAsync(2305, 0);
+                await WriteToRegisterWithRetryAsync(2307, 0);
+                await WriteToRegisterWithRetryAsync(2308, 0);
+                await WriteToRegisterWithRetryAsync(2329, TestConfig.K5TestDelay);
+                await WriteToRegisterWithRetryAsync(2332, TestConfig.VccStartDelay);
+                await WriteToRegisterWithRetryAsync(2333, TestConfig.K5_52V_Min);
+                await WriteToRegisterWithRetryAsync(2334, TestConfig.K5_52V_Max);
+                await WriteToRegisterWithRetryAsync(2336, TestConfig.K5_55V_Min);
+                await WriteToRegisterWithRetryAsync(2337, TestConfig.K5_55V_Max);
+                await WriteToRegisterWithRetryAsync(2339, TestConfig.VoutMin);
+                await WriteToRegisterWithRetryAsync(2340, TestConfig.VoutMax);
+                await WriteToRegisterWithRetryAsync(2341, TestConfig.VoutVresMin);
+                await WriteToRegisterWithRetryAsync(2342, TestConfig.VoutVresMax);
+                await WriteToRegisterWithRetryAsync(2344, TestConfig.VrefMin);
+                await WriteToRegisterWithRetryAsync(2345, TestConfig.VrefMax);
+                await WriteToRegisterWithRetryAsync(2347, TestConfig.V12Min);
+                await WriteToRegisterWithRetryAsync(2348, TestConfig.V12Max);
+                await WriteToRegisterWithRetryAsync(2350, TestConfig.Vcc3V3Min);
+                await WriteToRegisterWithRetryAsync(2351, TestConfig.Vcc3V3Max);
+                await WriteToRegisterWithRetryAsync(2353, TestConfig.Vcc1V5Min);
+                await WriteToRegisterWithRetryAsync(2354, TestConfig.Vcc1V5Max);
+                await WriteToRegisterWithRetryAsync(2356, TestConfig.Vcc1V1Min);
+                await WriteToRegisterWithRetryAsync(2357, TestConfig.Vcc1V1Max);
+                await WriteToRegisterWithRetryAsync(2359, TestConfig.CR2032Min);
+                await WriteToRegisterWithRetryAsync(2360, TestConfig.CR2032Max);
+                await WriteToRegisterWithRetryAsync(2362, TestConfig.CR2032CpuMin);
+                await WriteToRegisterWithRetryAsync(2363, TestConfig.CR2032CpuMax);
+                await WriteToRegisterWithRetryAsync(2365, TestConfig.DutTamperStatusMin); // TAMPER_STATUS_MIN
+                await WriteToRegisterWithRetryAsync(2366, TestConfig.DutTamperStatusMax); // TAMPER_STATUS_MAX
+                await WriteToRegisterWithRetryAsync(2368, TestConfig.DutTamperLedMin);
+                await WriteToRegisterWithRetryAsync(2369, TestConfig.DutTamperLedMax);
 
                 ProgressValue = 0;
 
@@ -788,9 +818,11 @@ namespace RTL.ViewModels
 
                 IsTestRunning = true;
                 ProgressValue += 5;
+                K5TestStatus = 1;
                 // Подтест 1: VMAIN
                 if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage1K5, cancellationToken))
                 {
+                    K5TestStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -799,6 +831,7 @@ namespace RTL.ViewModels
                 // Подтест 2: VMAIN + VRES
                 if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
                 {
+                    K5TestStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -807,6 +840,7 @@ namespace RTL.ViewModels
                 // Подтест 3: VRES
                 if (!await RunSubTestK5Async(2327, () => StandRegisters.K5Stage3Status, "VRES", ReportModel.Stage3K5, cancellationToken))
                 {
+                    K5TestStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -815,6 +849,7 @@ namespace RTL.ViewModels
                 // Подтест 2: VMAIN + VRES
                 if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
                 {
+                    K5TestStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -823,13 +858,14 @@ namespace RTL.ViewModels
                 // VMAIN 2 
                 if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage4K5, cancellationToken))
                 {
+                    K5TestStatus = 3;
                     await StopHard();
                     return false;
                 }
                 if (cancellationToken.IsCancellationRequested) return false;
 
 
-                IsK5TestPassed = true;
+                K5TestStatus = 2;
                 ProgressValue += 5;
                 //  VCC
                 if (!await RunVCCTestAsync(cancellationToken))
@@ -894,11 +930,11 @@ namespace RTL.ViewModels
                 }
 
                 _logger.LogToUser($"Тест {testName} запущен...", LogLevel.Info);
-                WriteToRegisterWithRetry(startRegister, 1);
+                await WriteToRegisterWithRetryAsync(startRegister, 1);
 
                 while (getStatus() != 1)
                 {
-                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0 )
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
                         return false;
@@ -909,7 +945,7 @@ namespace RTL.ViewModels
                 _logger.LogToUser($"Ожидание завершения теста {testName}...", LogLevel.Debug);
                 while (true)
                 {
-                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0 )
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
                         return false;
@@ -917,10 +953,17 @@ namespace RTL.ViewModels
 
                     await Task.Delay(2000);
                     var status = getStatus();
+
                     if (status == 2 || status == 3)
                     {
-                        bool success = status == 2;
+                        if (status == 3) // Ошибка теста → повторная проверка
+                        {
+                            _logger.LogToUser($"Тест {testName} завершился с ошибкой, повторная проверка...", LogLevel.Warning);
+                            await Task.Delay(2000);
+                            status = getStatus();
+                        }
 
+                        bool success = status == 2;
                         report.ResultK5 = success;
                         report.V52Report = StandRegisters.V52Report;
                         report.V55Report = StandRegisters.V55Report;
@@ -949,12 +992,9 @@ namespace RTL.ViewModels
             }
         }
 
-        private bool _isK5TestPassed;
-        public bool IsK5TestPassed
-        {
-            get => _isK5TestPassed;
-            set => SetAndNotify(ref _isK5TestPassed, value);
-        }
+
+
+
 
 
         #endregion K5
@@ -970,8 +1010,9 @@ namespace RTL.ViewModels
                 }
 
                 _logger.LogToUser("Тест VCC запущен...", LogLevel.Info);
+
             restartTest:
-                WriteToRegisterWithRetry(2330, 1);
+                await WriteToRegisterWithRetryAsync(2330, 1);
 
                 // Ожидание запуска теста
                 while (StandRegisters.VCCTestStatus == 0)
@@ -1002,6 +1043,8 @@ namespace RTL.ViewModels
                     {
                         bool success = status == 2;
 
+                        ValidateVCCResults();
+
                         _logger.LogToUser(
                             $"VCC Тест: {(success ? "Успешно" : "Ошибка")}; " +
                             $"3.3V={StandRegisters.V3_3Report}; 1.5V={StandRegisters.V1_5Report}; " +
@@ -1012,16 +1055,11 @@ namespace RTL.ViewModels
 
                         if (!success)
                         {
-                            bool shouldRestart = (StandRegisters.V3_3Report == 0 ||
-                                                  (StandRegisters.V3_3Report >= TestConfig.Vcc3V3Min && StandRegisters.V3_3Report <= TestConfig.Vcc3V3Max)) &&
-                                                 (StandRegisters.V1_5Report == 0 ||
-                                                  (StandRegisters.V1_5Report >= TestConfig.Vcc1V5Min && StandRegisters.V1_5Report <= TestConfig.Vcc1V5Max)) &&
-                                                 (StandRegisters.V1_1Report == 0 ||
-                                                  (StandRegisters.V1_1Report >= TestConfig.Vcc1V1Min && StandRegisters.V1_1Report <= TestConfig.Vcc1V1Max)) &&
-                                                 (StandRegisters.CR2032Report == 0 ||
-                                                  (StandRegisters.CR2032Report >= TestConfig.CR2032Min && StandRegisters.CR2032Report <= TestConfig.CR2032Max)) &&
-                                                 (StandRegisters.CR2032_CPUReport == 0 ||
-                                                  (StandRegisters.CR2032_CPUReport >= TestConfig.CR2032CpuMin && StandRegisters.CR2032_CPUReport <= TestConfig.CR2032CpuMax));
+                            bool shouldRestart = (V33Status == 2) &&
+                                                 (V15Status == 2) &&
+                                                 (V11Status == 2) &&
+                                                 (CrStatus == 2) &&
+                                                 (CrCpuStatus == 2);
 
                             if (shouldRestart)
                             {
@@ -1045,6 +1083,22 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+        private void ValidateVCCResults()
+        {
+            V33Status = ValidateRange(StandRegisters.V3_3Report, TestConfig.Vcc3V3Min, TestConfig.Vcc3V3Max);
+            V15Status = ValidateRange(StandRegisters.V1_5Report, TestConfig.Vcc1V5Min, TestConfig.Vcc1V5Max);
+            V11Status = ValidateRange(StandRegisters.V1_1Report, TestConfig.Vcc1V1Min, TestConfig.Vcc1V1Max);
+            CrStatus = ValidateRange(StandRegisters.CR2032Report, TestConfig.CR2032Min, TestConfig.CR2032Max);
+            CrCpuStatus = ValidateRange(StandRegisters.CR2032_CPUReport, TestConfig.CR2032CpuMin, TestConfig.CR2032CpuMax);
+        }
+
+        private ushort ValidateRange(double value, double min, double max)
+        {
+            if (value == 0) return 1; // Не проводился
+            return (value >= min && value <= max) ? (ushort)2 : (ushort)3;
+        }
+
+
 
 
 
@@ -1060,7 +1114,7 @@ namespace RTL.ViewModels
                 return true;
             }
 
-            WriteToRegisterWithRetry(2301, 1);
+            await WriteToRegisterWithRetryAsync(2301, 1);
 
             string programPath = Properties.Settings.Default.FlashProgramPath;
             string projectPath = Properties.Settings.Default.FlashFirmwarePath;
@@ -1225,30 +1279,30 @@ namespace RTL.ViewModels
                 return true; // Пропускаем прошивку
             }
 
-            string flashToolPath = @"C:\Users\user\Downloads\xpack-openocd-0.12.0-6\xpack-openocd-0.12.0-6\flash.bat";
-            string firmwarePath = Properties.Settings.Default.SwdProgramPath; // Берём путь к прошивке из настроек
+            string firmwarePath = Properties.Settings.Default.SwdFirmwarePath;
+            string flashToolPath = Properties.Settings.Default.SwdProgramPath; // Берём путь к прошивке из настроек
 
             if (!File.Exists(flashToolPath))
             {
-                _logger.Log($"Ошибка: Не найден скрипт прошивки по пути {flashToolPath}.", LogLevel.Error);
+                _logger.LogToUser($"Ошибка: Не найден скрипт прошивки по пути {flashToolPath}.", LogLevel.Error);
                 return false;
             }
 
             if (!File.Exists(firmwarePath))
             {
-                _logger.Log($"Ошибка: Файл прошивки {firmwarePath} не найден.", LogLevel.Error);
+                _logger.LogToUser($"Ошибка: Файл прошивки {firmwarePath} не найден.", LogLevel.Error);
                 return false;
             }
 
             try
             {
-                _logger.Log("Включаем питание на стенде перед прошивкой...", LogLevel.Info);
-                WriteToRegisterWithRetry(2301, 1, 3);
+                _logger.LogToUser("Включаем питание на стенде перед прошивкой...", LogLevel.Info);
+                await WriteToRegisterWithRetryAsync(2301, 1, 3);
                 await Task.Delay(1000, cancellationToken); // Ждём 1 секунду перед прошивкой
 
                 string formattedFirmwarePath = Path.GetFullPath(firmwarePath).Replace("\\", "/");
 
-                _logger.Log($"Запуск прошивки MCU... (Прошивка: {formattedFirmwarePath})", LogLevel.Info);
+                _logger.LogToUser($"Запуск прошивки MCU... (Прошивка: {formattedFirmwarePath})", LogLevel.Info);
 
                 var processStartInfo = new ProcessStartInfo
                 {
@@ -1258,7 +1312,7 @@ namespace RTL.ViewModels
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,
-                    WorkingDirectory = @"C:\Users\user\Downloads\xpack-openocd-0.12.0-6\xpack-openocd-0.12.0-6" // <<< Указываем рабочую директорию
+                    WorkingDirectory = flashToolPath // <<< Указываем рабочую директорию
                 };
 
 
@@ -1275,17 +1329,17 @@ namespace RTL.ViewModels
 
                     if (process.ExitCode != 0)
                     {
-                        _logger.Log($"Ошибка прошивки! Код выхода: {process.ExitCode}", LogLevel.Error);
+                        _logger.LogToUser($"Ошибка прошивки! Код выхода: {process.ExitCode}", LogLevel.Error);
                         return false;
                     }
 
-                    _logger.Log("Прошивка завершена успешно!", LogLevel.Success);
+                    _logger.LogToUser("Прошивка завершена успешно!", LogLevel.Success);
                     return true;
                 }
             }
             catch (Exception ex)
             {
-                _logger.Log($"Ошибка во время прошивки MCU: {ex.Message}", LogLevel.Error);
+                _logger.LogToUser($"Ошибка во время прошивки MCU: {ex.Message}", LogLevel.Error);
                 return false;
             }
         }
@@ -1298,9 +1352,9 @@ namespace RTL.ViewModels
 
         public bool IsDutSelfTestEnabled => TestConfig.IsDutSelfTestEnabled &&
                                             (TestConfig.DutSelfTest ||
-                                            TestConfig.DutSensor1Test || 
+                                            TestConfig.DutSensor1Test ||
                                             TestConfig.DutSensor2Test ||
-                                            TestConfig.DutRelayTest || 
+                                            TestConfig.DutRelayTest ||
                                             TestConfig.DutTamperTest ||
                                             TestConfig.DutPoeTest ||
                                             TestConfig.DutRs485Test ||
@@ -1316,13 +1370,15 @@ namespace RTL.ViewModels
             // Ожидание загрузки DUT после прошивки
             if (!await WaitForDUTReadyAsync(cancellationToken, 30, 180))
             {
+                ConsoleStatus = 3;
                 _logger.LogToUser("DUT не готов после прошивки.", LogLevel.Error);
                 await StopHard();
                 return false;
             }
+            ConsoleStatus = 2;
             ProgressValue += 5;
             // Самотестирование
-            if (TestConfig.DutSelfTest) 
+            if (TestConfig.DutSelfTest)
             {
                 if (!await RunSelfTestAsync(cancellationToken))
                 {
@@ -1342,6 +1398,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunSensorTestAsync(2303, "sensor1", cancellationToken))
                 {
+                    Sensor1Status = 3;
                     _logger.LogToUser("Тест SENSOR1 завершился с ошибкой.", LogLevel.Error);
                     await StopHard();
                     return false;
@@ -1351,7 +1408,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест SENSOR1 пропущен (отключен в конфигурации).", LogLevel.Info);
             }
-
+            Sensor1Status = 2;
             if (cancellationToken.IsCancellationRequested) return false;
             ProgressValue += 5;
             // SENSOR2
@@ -1359,6 +1416,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunSensorTestAsync(2304, "sensor2", cancellationToken))
                 {
+                    Sensor2Status = 3;
                     _logger.LogToUser("Тест SENSOR2 завершился с ошибкой.", LogLevel.Error);
                     await StopHard();
                     return false;
@@ -1368,12 +1426,15 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест SENSOR2 пропущен (отключен в конфигурации).", LogLevel.Info);
             }
+            Sensor2Status = 2;
             ProgressValue += 5;
             // RELAY
+
             if (TestConfig.DutRelayTest)
             {
                 if (!await RunRelayTestAsync(2306, cancellationToken))
                 {
+                    RelayStatus = 3;
                     _logger.LogToUser("Тест RELAY завершился с ошибкой.", LogLevel.Error);
                     await StopHard();
                     return false;
@@ -1383,12 +1444,14 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест RELAY пропущен (отключен в конфигурации).", LogLevel.Info);
             }
+            RelayStatus = 2;
             ProgressValue += 5;
             // TAMPER
             if (TestConfig.DutTamperTest)
             {
                 if (!await RunTamperTestAsync(cancellationToken))
                 {
+                    TamperStatus = 3;
                     _logger.LogToUser("Тестирование TAMPER завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
                     return false;
@@ -1398,12 +1461,15 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест TAMPER пропущен (отключен в конфигурации).", LogLevel.Info);
             }
+            TamperStatus = 2;
             ProgressValue += 5;
             // RS485
+
             if (TestConfig.DutRs485Test)
             {
                 if (!await RunRS485TestAsync(cancellationToken))
                 {
+                    Rs485Status = 3;
                     _logger.LogToUser("Тестирование RS485 завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
                     return false;
@@ -1411,14 +1477,17 @@ namespace RTL.ViewModels
             }
             else
             {
+
                 _logger.LogToUser("Тест RS485 пропущен (отключен в конфигурации).", LogLevel.Info);
             }
+            Rs485Status = 2;
             ProgressValue += 5;
             // I2C
             if (TestConfig.DutI2CTest)
             {
                 if (!await RunI2CTestAsync(cancellationToken))
                 {
+                    I2CStatus = 3;
                     _logger.LogToUser("Тестирование I2C завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
                     return false;
@@ -1428,12 +1497,14 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест I2C пропущен (отключен в конфигурации).", LogLevel.Info);
             }
+            I2CStatus = 2;
             ProgressValue += 5;
             // POE
             if (TestConfig.DutPoeTest)
             {
                 if (!await RunPoETestAsync(cancellationToken))
                 {
+                    PoeStatus = 3;
                     _logger.LogToUser("Тестирование POE завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
                     return false;
@@ -1443,7 +1514,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест POE пропущен (отключен в конфигурации).", LogLevel.Info);
             }
-
+            PoeStatus = 2;
             return true;
         }
 
@@ -1467,19 +1538,19 @@ namespace RTL.ViewModels
                 _logger.LogToUser($"Тестирование {sensorName}...", LogLevel.Info);
 
                 // Устанавливаем 0 в регистр
-                WriteToRegisterWithRetry(modbusRegister, 0);
+                await WriteToRegisterWithRetryAsync(modbusRegister, 0);
                 await Task.Delay(2000, cancellationToken);
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
                 if (!await VerifySensorStatus(sensorName, "0", cancellationToken)) return false;
 
                 // Устанавливаем 1 в регистр
-                WriteToRegisterWithRetry(modbusRegister, 1);
+                await WriteToRegisterWithRetryAsync(modbusRegister, 1);
                 await Task.Delay(2000, cancellationToken);
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
                 if (!await VerifySensorStatus(sensorName, "1", cancellationToken)) return false;
 
                 // Возвращаем 0
-                WriteToRegisterWithRetry(modbusRegister, 0);
+                await WriteToRegisterWithRetryAsync(modbusRegister, 0);
                 await Task.Delay(2000, cancellationToken);
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
                 if (!await VerifySensorStatus(sensorName, "0", cancellationToken)) return false;
@@ -1647,7 +1718,7 @@ namespace RTL.ViewModels
                 ushort maxTamperLed = TestConfig.DutTamperLedMax;
 
                 // 1) Отключаем Tamper (2305 = 0)
-                WriteToRegisterWithRetry(2305, 0);
+                await WriteToRegisterWithRetryAsync(2305, 0);
                 _logger.Log("2305 = 0 (Tamper отключён)", LogLevel.Debug);
                 await Task.Delay(5000, cancellationToken);
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
@@ -1665,7 +1736,7 @@ namespace RTL.ViewModels
                     return false;
 
                 // 5) Включаем Tamper (2305 = 1)
-                WriteToRegisterWithRetry(2305, 1);
+                await WriteToRegisterWithRetryAsync(2305, 1);
                 _logger.Log("2305 = 1 (Tamper включён)", LogLevel.Debug);
                 await Task.Delay(5000, cancellationToken);
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
@@ -1675,7 +1746,7 @@ namespace RTL.ViewModels
                     return false;
 
                 // 7) Отключаем Tamper (2305 = 0)
-                WriteToRegisterWithRetry(2305, 0);
+                await WriteToRegisterWithRetryAsync(2305, 0);
                 _logger.Log("2305 = 0 (Tamper отключён)", LogLevel.Debug);
                 await Task.Delay(5000, cancellationToken);
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0) return false;
@@ -1958,28 +2029,55 @@ namespace RTL.ViewModels
 
 
 
-        public void WriteToRegisterWithRetry(ushort register, ushort value, int retries = 3)
+        public async Task WriteToRegisterWithRetryAsync(ushort register, ushort value, int retries = 3)
         {
-
-            if (IsModbusConnected) { 
-            for (int i = 0; i < retries; i++)
+            for (int attempt = 1; attempt <= retries; attempt++)
             {
+                if (!IsModbusConnected)
+                {
+                    _logger.Log($"Modbus отключен. Попытка {attempt} переподключения...", LogLevel.Warning);
+                    if (!await TryReconnectModbusAsync())
+                    {
+                        _logger.Log("Не удалось переподключиться к Modbus.", LogLevel.Error);
+                        await StopHard();
+                        return;
+                    }
+                }
+
                 try
                 {
                     _modbusMaster.WriteSingleRegister(1, register, value);
                     _logger.Log($"{register} = {value}", LogLevel.Debug);
-                    return;
+                    return; // Успешная запись
                 }
                 catch (Exception ex)
                 {
-                    _logger.Log($"Попытка {i + 1} записи в регистр {register} не удалась: {ex.Message}", LogLevel.Warning);
-                    Thread.Sleep(1000);
+                    _logger.Log($"Попытка {attempt} записи в регистр {register} не удалась: {ex.Message}", LogLevel.Warning);
+                    await Task.Delay(1000); // Ждём перед следующей попыткой
                 }
             }
-            _logger.Log($"Не удалось записать значение {value} в регистр {register} после {retries} попыток.", LogLevel.Error);
-            throw new Exception($"Не удалось записать значение {value} в регистр {register} после {retries} попыток.");
+
+            _logger.Log($"Ошибка: не удалось записать {value} в {register} после {retries} попыток.", LogLevel.Error);
+            await StopHard();
+        }
+        private async Task<bool> TryReconnectModbusAsync()
+        {
+            try
+            {
+                DisconnectModbus(); // Закрываем текущее соединение
+
+                _logger.Log("Переподключаемся к Modbus...", LogLevel.Info);
+                await Task.Delay(2000); // Даем устройству время перед новым подключением
+
+                return await TryInitializeModbusAsync(); // Пытаемся подключиться
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка при переподключении к Modbus: {ex.Message}", LogLevel.Error);
+                return false;
             }
         }
+
 
         #region  GUI логика
 
@@ -1991,7 +2089,7 @@ namespace RTL.ViewModels
             set
             {
                 StandRegisters.V52Out = (ushort)(value ? 1 : 0);
-                WriteToRegisterWithRetry(2301, StandRegisters.V52Out);
+                //WriteToRegisterWithRetry(2301, StandRegisters.V52Out);
                 OnPropertyChanged();
             }
         }
@@ -2007,13 +2105,14 @@ namespace RTL.ViewModels
         private async Task StopHard()
         {
             _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
+            await WriteToRegisterWithRetryAsync(2301, 0);
+            await WriteToRegisterWithRetryAsync(2302, 0);
+
+            await Task.Delay(500); // Даем время на обработку
             IsTestRunning = false;
 
             // Отключаем питание платы
-            WriteToRegisterWithRetry(2301, 0);
-            WriteToRegisterWithRetry(2302, 0);
 
-            await Task.Delay(500); // Даем время на обработку
 
             _logger.LogToUser("Питание снято. Плату можно безопасно извлечь из стенда.", Loggers.LogLevel.Info);
         }
@@ -2070,5 +2169,105 @@ namespace RTL.ViewModels
         }
 
         #endregion отключения
+
+
+        #region раскраски
+
+        private ushort _k5testStatus = 1;
+        public ushort K5TestStatus
+        {
+            get => _k5testStatus;
+            set => SetAndNotify(ref _k5testStatus, value);
+        }
+
+        private ushort _rs485Status = 1;
+        public ushort Rs485Status
+        {
+            get => _rs485Status;
+            set => SetAndNotify(ref _rs485Status, value);
+        }
+
+        private ushort _sensor1Status = 1;
+        public ushort Sensor1Status
+        {
+            get => _sensor1Status;
+            set => SetAndNotify(ref _sensor1Status, value);
+        }
+
+        private ushort _sensor2Status = 1;
+        public ushort Sensor2Status
+        {
+            get => _sensor2Status;
+            set => SetAndNotify(ref _sensor2Status, value);
+        }
+
+        private ushort _relayStatus = 1;
+        public ushort RelayStatus
+        {
+            get => _relayStatus;
+            set => SetAndNotify(ref _relayStatus, value);
+        }
+
+        private ushort _poeStatus = 1;
+        public ushort PoeStatus
+        {
+            get => _poeStatus;
+            set => SetAndNotify(ref _poeStatus, value);
+        }
+        private ushort _tamperStatus = 1;
+        public ushort TamperStatus
+        {
+            get => _tamperStatus;
+            set => SetAndNotify(ref _tamperStatus, value);
+        }
+
+        private ushort _consoleStatus = 1;
+        public ushort ConsoleStatus
+        {
+            get => _consoleStatus;
+            set => SetAndNotify(ref _consoleStatus, value);
+        }
+        
+        private ushort _i2cStatus = 1;
+        public ushort I2CStatus
+        {
+            get => _i2cStatus;
+            set => SetAndNotify(ref _i2cStatus, value);
+        }
+
+
+        private ushort _v11Status = 1;
+        public ushort V11Status
+        {
+            get => _v11Status;
+            set => SetAndNotify(ref _v11Status, value);
+        }
+        private ushort _v15Status = 1;
+        public ushort V15Status
+        {
+            get => _v11Status;
+            set => SetAndNotify(ref _v15Status, value);
+        }
+
+        private ushort _v33Status = 1;
+        public ushort V33Status
+        {
+            get => _v33Status;
+            set => SetAndNotify(ref _v33Status, value);
+        }
+        private ushort _crStatus = 1;
+        public ushort CrStatus
+        {
+            get => _crStatus;
+            set => SetAndNotify(ref _crStatus, value);
+        }
+        private ushort _crCpuStatus = 1;
+        public ushort CrCpuStatus
+        {
+            get => _crCpuStatus;
+            set => SetAndNotify(ref _crCpuStatus, value);
+        }
+
+        #endregion раскраски
     }
 }

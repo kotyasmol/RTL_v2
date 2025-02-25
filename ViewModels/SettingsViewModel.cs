@@ -115,6 +115,21 @@ namespace RTL.ViewModels
             }
         }
 
+        private string _swdFirmwarePath;
+        public string SwdFirmwarePath
+        {
+            get => _swdFirmwarePath;
+            set
+            {
+                if (SetAndNotify(ref _swdFirmwarePath, value))
+                {
+                    Properties.Settings.Default.SwdFirmwarePath = value;
+                    Properties.Settings.Default.Save();
+                }
+            }
+        }
+
+
 
 
         private string _rtlPoeProfilePath;
@@ -179,7 +194,8 @@ namespace RTL.ViewModels
         public RelayCommand SelectFlashProgramCommand { get; }
         public RelayCommand SelectFlashFirmwareCommand { get; }
         public RelayCommand SelectSwdProgramCommand { get; }
-
+        public RelayCommand SelectSwdFirmwareCommand { get; }
+        
 
         public ICommand RefreshPortsCommand { get; }
 
@@ -215,6 +231,7 @@ namespace RTL.ViewModels
             SelectFlashProgramCommand = new RelayCommand(SelectFlashProgram);
             SelectFlashFirmwareCommand = new RelayCommand(SelectFlashFirmware);
             SelectSwdProgramCommand = new RelayCommand(SelectSwdProgram);
+            SelectSwdFirmwareCommand = new RelayCommand(SelectSwdFirmwarePath);
 
             RefreshPortsCommand = new RelayCommand(LoadAvailablePorts);
             LoadAvailablePorts();
@@ -313,6 +330,20 @@ namespace RTL.ViewModels
             if (dialog.ShowDialog() == true)
             {
                 SwdProgramPath = dialog.FileName;
+            }
+        }
+
+
+        private void SelectSwdFirmwarePath()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Все файлы (*.*)|*.*",
+                Title = "Выберите программу для прошивки SWD"
+            };
+            if (dialog.ShowDialog() == true)
+            {
+                SwdFirmwarePath = dialog.FileName;
             }
         }
 

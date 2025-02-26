@@ -29,12 +29,6 @@ namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
     {
-        private int _progressValue;
-        public int ProgressValue
-        {
-            get => _progressValue;
-            set => SetAndNotify(ref _progressValue, value);
-        }
 
 
 
@@ -881,7 +875,6 @@ namespace RTL.ViewModels
             try
             {
                 
-                await FlashMcuAsync(CancellationToken.None);
 
 
                 IsTestRunning = true;
@@ -948,17 +941,32 @@ namespace RTL.ViewModels
                     return false;
                 }
                 ProgressValue += 5;
+                await WriteToRegisterWithRetryAsync(2301, 1);
                 // FLASH прошивка
                 if (!await StartProgrammingAsync(cancellationToken))
                 {
                     FlashStatus = 3;
                     RtlStatus = 3;
-                    _logger.LogToUser("Прошивка завершена с ошибкой", LogLevel.Error);
+                    _logger.LogToUser("Прошивка flash завершена с ошибкой", LogLevel.Error);
                     await StopHard();
                     return false;
                 }
                 FlashStatus = 2;
-                ProgressValue += 5; ///--------------------------------------------------------------возможно убрать 
+                await WriteToRegisterWithRetryAsync(2307, 0); //------------------------------------------выключаем ресет после двух прошивок 
+
+                ProgressValue += 5;
+                // MCU прошивка
+                if (!await FlashMcuAsync(cancellationToken))
+                {
+                    RtlStatus = 3;
+                    _logger.LogToUser("Прошивка mcu завершена с ошибкой", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+
+                
+
+                ProgressValue += 5; 
                 // DUT
                 if (IsDutSelfTestEnabled)
                 {
@@ -1191,7 +1199,8 @@ namespace RTL.ViewModels
                 return true;
             }
 
-            await WriteToRegisterWithRetryAsync(2301, 1);
+
+            await WriteToRegisterWithRetryAsync(2307, 1);
 
             string programPath = Properties.Settings.Default.FlashProgramPath;
             string projectPath = Properties.Settings.Default.FlashFirmwarePath;
@@ -1345,7 +1354,6 @@ namespace RTL.ViewModels
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
         #endregion прошивка flash
-
         #region прошивка 2
 
         private async Task<bool> FlashMcuAsync(CancellationToken cancellationToken)
@@ -1440,8 +1448,6 @@ namespace RTL.ViewModels
 
 
         #endregion прошивка 2
-
-
         #region Dut тесты
 
         public bool IsDutSelfTestEnabled => TestConfig.IsDutSelfTestEnabled &&
@@ -2086,11 +2092,6 @@ namespace RTL.ViewModels
         }
         #endregion Dut тесты
         #endregion тестирование
-
-
-
-
-
         public RtlSwViewModel(Loggers logger)
         {
 
@@ -2124,14 +2125,6 @@ namespace RTL.ViewModels
                 await ToggleConnectionAsync();
             });
         }
-
-
-
-
-
-
-
-
         public async Task WriteToRegisterWithRetryAsync(ushort register, ushort value, int retries = 3)
         {
             for (int attempt = 1; attempt <= retries; attempt++)
@@ -2180,8 +2173,6 @@ namespace RTL.ViewModels
                 return false;
             }
         }
-
-
         #region  GUI логика
 
         #region тумблеры модбас
@@ -2314,9 +2305,15 @@ namespace RTL.ViewModels
 
 
         #endregion раскраски
+
+        private int _progressValue;
+        public int ProgressValue
+        {
+            get => _progressValue;
+            set => SetAndNotify(ref _progressValue, value);
+        }
+
         #endregion GUI логика
-
-
         #region отключения
         private async Task StopHard()
         {
@@ -2385,6 +2382,14 @@ namespace RTL.ViewModels
         }
 
         #endregion отключения
+
+
+        #region камера балуюс
+
+
+
+
+        #endregion камера балуюс
 
 
 

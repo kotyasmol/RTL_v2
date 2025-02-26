@@ -312,7 +312,7 @@ namespace RTL.ViewModels
 
         private SerialPort _serialPortDut;
 
-        public async Task<bool> WaitForDUTReadyAsync(CancellationToken cancellationToken, int noLogTimeoutSeconds = 100, int maxWaitTimeSeconds = 1200)
+        public async Task<bool> WaitForDUTReadyAsync(CancellationToken cancellationToken, bool wasFlashed = false, int noLogTimeoutSeconds = 100, int maxWaitTimeSeconds = 1200)
         {
             await WriteToRegisterWithRetryAsync(2301, 0);
             await WriteToRegisterWithRetryAsync(2301, 1);
@@ -330,12 +330,13 @@ namespace RTL.ViewModels
                 DateTime startTime = DateTime.Now;
                 DateTime lastLogTime = DateTime.Now;
                 bool successPromptShown = false;
+                bool flashedOnce = false; // Флаг, который не даёт прошивать DUT повторно
 
                 while ((DateTime.Now - startTime).TotalSeconds < maxWaitTimeSeconds)
                 {
-                    if (cancellationToken.IsCancellationRequested)
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
-                        _logger.LogToUser("Ожидание DUT отменено.", LogLevel.Warning);
+                        _logger.LogToUser("Ожидание DUT прервано (кнопка RUN в положении 0).", LogLevel.Warning);
                         _serialPortDut?.Close();
                         return false;
                     }
@@ -360,6 +361,51 @@ namespace RTL.ViewModels
                         _serialPortDut.Write("\n");
                         _logger.Log("Нет новых логов. Отправлена команда \\n для проверки готовности.", LogLevel.Debug);
                         successPromptShown = true;
+
+                        await Task.Delay(1000, cancellationToken);
+                        _serialPortDut.Write("ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'\n");
+                        _logger.Log("Отправлена команда ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'", LogLevel.Debug);
+
+                        await Task.Delay(2000, cancellationToken); // Ждём ответ
+
+                        if (_serialPortDut.BytesToRead > 0)
+                        {
+                            string response = _serialPortDut.ReadExisting();
+                            _logger.Log($"Ответ на команду ubus: {response.Trim()}", LogLevel.Debug);
+
+                            if (response.Contains("\"SW_VERS\": \"3\""))
+                            {
+                                _logger.Log("Обнаружен корректный ответ от ubus. DUT готов к работе.", LogLevel.Info);
+                                _logger.LogToUser("DUT готов к работе.", LogLevel.Success);
+                                return true;
+                            }
+
+                            if (response.Contains("\"SW_VERS\": \"0\""))
+                            {
+                                if (wasFlashed)
+                                {
+                                    _logger.LogToUser("Ошибка: SW_VERS = 0 после прошивки. Прекращаем процесс.", LogLevel.Error);
+                                    return false;
+                                }
+
+                                _logger.LogToUser("Ошибка: обнаружен SW_VERS = 0. Перепрошиваем MCU...", LogLevel.Warning);
+
+                                await WriteToRegisterWithRetryAsync(2301, 0);
+                                await WriteToRegisterWithRetryAsync(2302, 0);
+                                await Task.Delay(1000, cancellationToken);
+
+                                if (!await FlashMcuAsync(cancellationToken))
+                                {
+                                    _logger.LogToUser("Ошибка при повторной прошивке. Завершаем процесс.", LogLevel.Error);
+                                    return false;
+                                }
+
+                                _logger.LogToUser("Повторная загрузка DUT после прошивки...", LogLevel.Info);
+
+                                // Запускаем повторное ожидание, но теперь `wasFlashed = true`
+                                return await WaitForDUTReadyAsync(cancellationToken, true, noLogTimeoutSeconds, maxWaitTimeSeconds);
+                            }
+                        }
                     }
                 }
 
@@ -791,6 +837,27 @@ namespace RTL.ViewModels
                 await WriteToRegisterWithRetryAsync(2368, TestConfig.DutTamperLedMin);
                 await WriteToRegisterWithRetryAsync(2369, TestConfig.DutTamperLedMax);
 
+                RtlStatus = 1;
+
+                K5TestStatus = 1;
+
+                V11Status = 1;
+                V15Status = 1;
+                V33Status = 1;
+                CrStatus = 1;
+                CrCpuStatus = 1;
+
+                FlashStatus = 1;
+                ConsoleStatus = 1;
+
+                Sensor1Status = 1;
+                Sensor2Status = 1;
+                RelayStatus = 1;
+                TamperStatus = 1;
+                Rs485Status = 1;
+                I2CStatus = 1;
+                PoeStatus = 1;
+
                 ProgressValue = 0;
 
 
@@ -813,6 +880,7 @@ namespace RTL.ViewModels
         {
             try
             {
+                
                 await FlashMcuAsync(CancellationToken.None);
 
 
@@ -823,6 +891,7 @@ namespace RTL.ViewModels
                 if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage1K5, cancellationToken))
                 {
                     K5TestStatus = 3;
+                    RtlStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -832,6 +901,7 @@ namespace RTL.ViewModels
                 if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
                 {
                     K5TestStatus = 3;
+                    RtlStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -841,6 +911,7 @@ namespace RTL.ViewModels
                 if (!await RunSubTestK5Async(2327, () => StandRegisters.K5Stage3Status, "VRES", ReportModel.Stage3K5, cancellationToken))
                 {
                     K5TestStatus = 3;
+                    RtlStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -850,6 +921,7 @@ namespace RTL.ViewModels
                 if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
                 {
                     K5TestStatus = 3;
+                    RtlStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -859,6 +931,7 @@ namespace RTL.ViewModels
                 if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage4K5, cancellationToken))
                 {
                     K5TestStatus = 3;
+                    RtlStatus = 3;
                     await StopHard();
                     return false;
                 }
@@ -878,10 +951,13 @@ namespace RTL.ViewModels
                 // FLASH прошивка
                 if (!await StartProgrammingAsync(cancellationToken))
                 {
+                    FlashStatus = 3;
+                    RtlStatus = 3;
                     _logger.LogToUser("Прошивка завершена с ошибкой", LogLevel.Error);
                     await StopHard();
                     return false;
                 }
+                FlashStatus = 2;
                 ProgressValue += 5; ///--------------------------------------------------------------возможно убрать 
                 // DUT
                 if (IsDutSelfTestEnabled)
@@ -899,6 +975,7 @@ namespace RTL.ViewModels
                     _logger.LogToUser("Тестирование DUT отключено, пропускаем.", LogLevel.Info);
                 }
 
+                RtlStatus = 2;
                 await StopHard();
                 return true;
             }
@@ -1275,12 +1352,15 @@ namespace RTL.ViewModels
         {
             if (!TestConfig.IsMcuProgrammingEnabled)
             {
-                _logger.Log("Прошивка MCU отключена в профиле тестирования.", LogLevel.Warning);
+                _logger.LogToUser("Прошивка MCU отключена в профиле тестирования.", LogLevel.Warning);
                 return true; // Пропускаем прошивку
             }
 
-            string firmwarePath = Properties.Settings.Default.SwdFirmwarePath;
-            string flashToolPath = Properties.Settings.Default.SwdProgramPath; // Берём путь к прошивке из настроек
+            string flashToolPath = Properties.Settings.Default.SwdProgramPath; // Путь к flash.bat
+            string firmwarePath = Properties.Settings.Default.SwdFirmwarePath; // Путь к файлу прошивки
+            string workingDirectory = Path.GetDirectoryName(flashToolPath); // Рабочая директория
+
+            _logger.Log("Подготовка к прошивке MCU...", LogLevel.Info);
 
             if (!File.Exists(flashToolPath))
             {
@@ -1300,21 +1380,28 @@ namespace RTL.ViewModels
                 await WriteToRegisterWithRetryAsync(2301, 1, 3);
                 await Task.Delay(1000, cancellationToken); // Ждём 1 секунду перед прошивкой
 
-                string formattedFirmwarePath = Path.GetFullPath(firmwarePath).Replace("\\", "/");
+                // Корректный формат пути для передачи в аргумент командной строки
+                string formattedFirmwarePath = $"\"{firmwarePath.Replace("\\", "/")}\"";
 
-                _logger.LogToUser($"Запуск прошивки MCU... (Прошивка: {formattedFirmwarePath})", LogLevel.Info);
+                _logger.LogToUser($"Используемый файл прошивки: {firmwarePath}", LogLevel.Debug);
+                _logger.LogToUser($"Запуск прошивки MCU... (Прошивка: {firmwarePath})", LogLevel.Info);
 
                 var processStartInfo = new ProcessStartInfo
                 {
                     FileName = flashToolPath,
-                    Arguments = $"\"{formattedFirmwarePath}\"",
+                    Arguments = formattedFirmwarePath, // Передаём путь к файлу прошивки как аргумент
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,
-                    WorkingDirectory = flashToolPath // <<< Указываем рабочую директорию
+                    WorkingDirectory = workingDirectory // Устанавливаем рабочую директорию
                 };
 
+                _logger.LogToUser($"Запуск процесса: {flashToolPath}", LogLevel.Debug);
+                _logger.LogToUser($"Аргументы процесса: {processStartInfo.Arguments}", LogLevel.Debug);
+                _logger.LogToUser($"Рабочая директория: {processStartInfo.WorkingDirectory}", LogLevel.Debug);
+
+                DateTime startTime = DateTime.Now;
 
                 using (var process = new Process { StartInfo = processStartInfo })
                 {
@@ -1325,7 +1412,14 @@ namespace RTL.ViewModels
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
 
+                    _logger.LogToUser("Ожидание завершения прошивки...", LogLevel.Info);
                     await process.WaitForExitAsync(cancellationToken);
+
+                    DateTime endTime = DateTime.Now;
+                    double duration = (endTime - startTime).TotalSeconds;
+
+                    _logger.LogToUser($"Прошивка завершилась за {duration:F2} секунд.", LogLevel.Info);
+                    _logger.LogToUser($"Код выхода процесса: {process.ExitCode}", LogLevel.Debug);
 
                     if (process.ExitCode != 0)
                     {
@@ -1344,8 +1438,8 @@ namespace RTL.ViewModels
             }
         }
 
-        #endregion прошивка 2
 
+        #endregion прошивка 2
 
 
         #region Dut тесты
@@ -1368,8 +1462,9 @@ namespace RTL.ViewModels
             }
             ProgressValue += 5;
             // Ожидание загрузки DUT после прошивки
-            if (!await WaitForDUTReadyAsync(cancellationToken, 30, 180))
+            if (!await WaitForDUTReadyAsync(cancellationToken,false, 30, 180))
             {
+                RtlStatus = 3;
                 ConsoleStatus = 3;
                 _logger.LogToUser("DUT не готов после прошивки.", LogLevel.Error);
                 await StopHard();
@@ -1382,6 +1477,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunSelfTestAsync(cancellationToken))
                 {
+                    RtlStatus = 3;
                     _logger.LogToUser("Самотестирование завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
                     return false;
@@ -1398,6 +1494,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunSensorTestAsync(2303, "sensor1", cancellationToken))
                 {
+                    RtlStatus = 3;
                     Sensor1Status = 3;
                     _logger.LogToUser("Тест SENSOR1 завершился с ошибкой.", LogLevel.Error);
                     await StopHard();
@@ -1416,6 +1513,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunSensorTestAsync(2304, "sensor2", cancellationToken))
                 {
+                    RtlStatus = 3;
                     Sensor2Status = 3;
                     _logger.LogToUser("Тест SENSOR2 завершился с ошибкой.", LogLevel.Error);
                     await StopHard();
@@ -1434,6 +1532,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunRelayTestAsync(2306, cancellationToken))
                 {
+                    RtlStatus = 3;
                     RelayStatus = 3;
                     _logger.LogToUser("Тест RELAY завершился с ошибкой.", LogLevel.Error);
                     await StopHard();
@@ -1451,6 +1550,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunTamperTestAsync(cancellationToken))
                 {
+                    RtlStatus = 3;
                     TamperStatus = 3;
                     _logger.LogToUser("Тестирование TAMPER завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
@@ -1469,6 +1569,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunRS485TestAsync(cancellationToken))
                 {
+                    RtlStatus = 3;
                     Rs485Status = 3;
                     _logger.LogToUser("Тестирование RS485 завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
@@ -1487,6 +1588,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunI2CTestAsync(cancellationToken))
                 {
+                    RtlStatus = 3;
                     I2CStatus = 3;
                     _logger.LogToUser("Тестирование I2C завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
@@ -1504,6 +1606,7 @@ namespace RTL.ViewModels
             {
                 if (!await RunPoETestAsync(cancellationToken))
                 {
+                    RtlStatus = 3;
                     PoeStatus = 3;
                     _logger.LogToUser("Тестирование POE завершилось с ошибкой.", LogLevel.Error);
                     await StopHard();
@@ -2097,7 +2200,120 @@ namespace RTL.ViewModels
 
 
         #endregion тумблеры модбас
+        #region раскраски
 
+        private ushort _k5testStatus = 1;
+        public ushort K5TestStatus
+        {
+            get => _k5testStatus;
+            set => SetAndNotify(ref _k5testStatus, value);
+        }
+
+        private ushort _rs485Status = 1;
+        public ushort Rs485Status
+        {
+            get => _rs485Status;
+            set => SetAndNotify(ref _rs485Status, value);
+        }
+
+        private ushort _sensor1Status = 1;
+        public ushort Sensor1Status
+        {
+            get => _sensor1Status;
+            set => SetAndNotify(ref _sensor1Status, value);
+        }
+
+        private ushort _sensor2Status = 1;
+        public ushort Sensor2Status
+        {
+            get => _sensor2Status;
+            set => SetAndNotify(ref _sensor2Status, value);
+        }
+
+        private ushort _relayStatus = 1;
+        public ushort RelayStatus
+        {
+            get => _relayStatus;
+            set => SetAndNotify(ref _relayStatus, value);
+        }
+
+        private ushort _poeStatus = 1;
+        public ushort PoeStatus
+        {
+            get => _poeStatus;
+            set => SetAndNotify(ref _poeStatus, value);
+        }
+        private ushort _tamperStatus = 1;
+        public ushort TamperStatus
+        {
+            get => _tamperStatus;
+            set => SetAndNotify(ref _tamperStatus, value);
+        }
+
+        private ushort _consoleStatus = 1;
+        public ushort ConsoleStatus
+        {
+            get => _consoleStatus;
+            set => SetAndNotify(ref _consoleStatus, value);
+        }
+
+        private ushort _i2cStatus = 1;
+        public ushort I2CStatus
+        {
+            get => _i2cStatus;
+            set => SetAndNotify(ref _i2cStatus, value);
+        }
+
+
+        private ushort _v11Status = 1;
+        public ushort V11Status
+        {
+            get => _v11Status;
+            set => SetAndNotify(ref _v11Status, value);
+        }
+        private ushort _v15Status = 1;
+        public ushort V15Status
+        {
+            get => _v11Status;
+            set => SetAndNotify(ref _v15Status, value);
+        }
+
+        private ushort _v33Status = 1;
+        public ushort V33Status
+        {
+            get => _v33Status;
+            set => SetAndNotify(ref _v33Status, value);
+        }
+        private ushort _crStatus = 1;
+        public ushort CrStatus
+        {
+            get => _crStatus;
+            set => SetAndNotify(ref _crStatus, value);
+        }
+        private ushort _crCpuStatus = 1;
+        public ushort CrCpuStatus
+        {
+            get => _crCpuStatus;
+            set => SetAndNotify(ref _crCpuStatus, value);
+        }
+
+
+        private ushort _flashStatus = 1;
+        public ushort FlashStatus
+        {
+            get => _flashStatus;
+            set => SetAndNotify(ref _flashStatus, value);
+        }
+        private ushort _rtlStatus = 1;
+        public ushort RtlStatus
+        {
+            get => _rtlStatus;
+            set => SetAndNotify(ref _rtlStatus, value);
+        }
+
+
+
+        #endregion раскраски
         #endregion GUI логика
 
 
@@ -2171,103 +2387,6 @@ namespace RTL.ViewModels
         #endregion отключения
 
 
-        #region раскраски
 
-        private ushort _k5testStatus = 1;
-        public ushort K5TestStatus
-        {
-            get => _k5testStatus;
-            set => SetAndNotify(ref _k5testStatus, value);
-        }
-
-        private ushort _rs485Status = 1;
-        public ushort Rs485Status
-        {
-            get => _rs485Status;
-            set => SetAndNotify(ref _rs485Status, value);
-        }
-
-        private ushort _sensor1Status = 1;
-        public ushort Sensor1Status
-        {
-            get => _sensor1Status;
-            set => SetAndNotify(ref _sensor1Status, value);
-        }
-
-        private ushort _sensor2Status = 1;
-        public ushort Sensor2Status
-        {
-            get => _sensor2Status;
-            set => SetAndNotify(ref _sensor2Status, value);
-        }
-
-        private ushort _relayStatus = 1;
-        public ushort RelayStatus
-        {
-            get => _relayStatus;
-            set => SetAndNotify(ref _relayStatus, value);
-        }
-
-        private ushort _poeStatus = 1;
-        public ushort PoeStatus
-        {
-            get => _poeStatus;
-            set => SetAndNotify(ref _poeStatus, value);
-        }
-        private ushort _tamperStatus = 1;
-        public ushort TamperStatus
-        {
-            get => _tamperStatus;
-            set => SetAndNotify(ref _tamperStatus, value);
-        }
-
-        private ushort _consoleStatus = 1;
-        public ushort ConsoleStatus
-        {
-            get => _consoleStatus;
-            set => SetAndNotify(ref _consoleStatus, value);
-        }
-        
-        private ushort _i2cStatus = 1;
-        public ushort I2CStatus
-        {
-            get => _i2cStatus;
-            set => SetAndNotify(ref _i2cStatus, value);
-        }
-
-
-        private ushort _v11Status = 1;
-        public ushort V11Status
-        {
-            get => _v11Status;
-            set => SetAndNotify(ref _v11Status, value);
-        }
-        private ushort _v15Status = 1;
-        public ushort V15Status
-        {
-            get => _v11Status;
-            set => SetAndNotify(ref _v15Status, value);
-        }
-
-        private ushort _v33Status = 1;
-        public ushort V33Status
-        {
-            get => _v33Status;
-            set => SetAndNotify(ref _v33Status, value);
-        }
-        private ushort _crStatus = 1;
-        public ushort CrStatus
-        {
-            get => _crStatus;
-            set => SetAndNotify(ref _crStatus, value);
-        }
-        private ushort _crCpuStatus = 1;
-        public ushort CrCpuStatus
-        {
-            get => _crCpuStatus;
-            set => SetAndNotify(ref _crCpuStatus, value);
-        }
-
-        #endregion раскраски
     }
 }

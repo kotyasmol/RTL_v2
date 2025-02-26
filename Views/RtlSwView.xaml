@@ -115,13 +115,13 @@
                         <Rectangle Fill="{Binding V15Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" Height="14" Canvas.Left="87" Canvas.Top="105" Width="8"  Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Fill="{Binding V15Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" Height="14" Canvas.Left="87" Canvas.Top="127" Width="8"  Stroke="Black" StrokeThickness="2"/>
 
-                        <!-- SPI -->
-                        <Rectangle Canvas.Left="380" Canvas.Top="9" Width="48" Height="33" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="408" Canvas.Top="54" Width="36" Height="36" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="400" Canvas.Top="58" Width="10" Height="28" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="442" Canvas.Top="58" Width="10" Height="28" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="379" Canvas.Top="72" Width="14" Height="8" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="399" Canvas.Top="94" Width="14" Height="8" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
+                        <!-- SPI  первая прошивка-->
+                        <Rectangle Canvas.Left="380" Canvas.Top="9" Width="48" Height="33" Fill="{Binding FlashStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="408" Canvas.Top="54" Width="36" Height="36" Fill="{Binding FlashStatus, Converter={StaticResource UShortToColorConverter}}" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="400" Canvas.Top="58" Width="10" Height="28" Fill="{Binding FlashStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="442" Canvas.Top="58" Width="10" Height="28" Fill="{Binding FlashStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="379" Canvas.Top="72" Width="14" Height="8" Fill="{Binding FlashStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="399" Canvas.Top="94" Width="14" Height="8" Fill="{Binding FlashStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
                         <!-- CONSOLE -->
                         <Rectangle Canvas.Left="468" Canvas.Top="16" Width="53" Height="28" Fill="{Binding ConsoleStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="485" Canvas.Top="65" Width="15" Height="9" Fill="{Binding ConsoleStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
@@ -183,13 +183,13 @@
 
 
                         <!-- RTL -->
-                        <Rectangle Canvas.Left="308" Canvas.Top="223" Width="186" Height="187" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="316" Canvas.Top="182" Width="118" Height="24" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="268" Canvas.Top="231" Width="26" Height="57" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="249" Canvas.Top="85" Width="78" Height="55" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="541" Canvas.Top="194" Width="81" Height="57" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="527" Canvas.Top="295" Width="48" Height="30" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-                        <Rectangle Canvas.Left="489" Canvas.Top="420" Width="52" Height="29" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2" RenderTransformOrigin="0.5,0.5">
+                        <Rectangle Canvas.Left="308" Canvas.Top="223" Width="186" Height="187" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="316" Canvas.Top="182" Width="118" Height="24" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="268" Canvas.Top="231" Width="26" Height="57" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="249" Canvas.Top="85" Width="78" Height="55" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="541" Canvas.Top="194" Width="81" Height="57" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="527" Canvas.Top="295" Width="48" Height="30" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="489" Canvas.Top="420" Width="52" Height="29" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2" RenderTransformOrigin="0.5,0.5">
                             <Rectangle.RenderTransform>
                                 <TransformGroup>
                                     <ScaleTransform/>
@@ -202,7 +202,7 @@
 
 
                         <!-- MCU -->
-                        <Rectangle Canvas.Left="912" Canvas.Top="266" Width="65" Height="65" Fill="#B5E61D" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
+                        <Rectangle Canvas.Left="912" Canvas.Top="266" Width="65" Height="65" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
 
                         <!-- RS-485  -->
                         <Rectangle Canvas.Left="1075" Canvas.Top="213" Width="37" Height="54" Fill="{Binding Rs485Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>

@@ -222,6 +222,7 @@ namespace RTL.ViewModels
             FlashProgramPath = Properties.Settings.Default.FlashProgramPath ?? string.Empty;
             FlashFirmwarePath = Properties.Settings.Default.FlashFirmwarePath ?? string.Empty;
             SwdProgramPath = Properties.Settings.Default.SwdProgramPath ?? string.Empty;
+            SwdFirmwarePath = Properties.Settings.Default.SwdFirmwarePath ?? string.Empty;
 
             // Создаём команды
             SelectLogFolderCommand = new RelayCommand(SelectLogFolder);

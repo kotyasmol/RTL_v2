@@ -417,6 +417,7 @@ namespace RTL.ViewModels
         {
             try
             {
+                await WriteToRegisterWithRetryAsync(2301, 1, 3);
                 string dutPort = Properties.Settings.Default.DutSW;
                 if (string.IsNullOrEmpty(dutPort))
                 {
@@ -952,7 +953,8 @@ namespace RTL.ViewModels
                     return false;
                 }
                 FlashStatus = 2;
-                await WriteToRegisterWithRetryAsync(2307, 0); //------------------------------------------выключаем ресет после двух прошивок 
+                await WriteToRegisterWithRetryAsync(2307, 0);
+                await Task.Delay(2000);//------------------------------------------выключаем ресет после двух прошивок 
 
                 ProgressValue += 5;
                 // MCU прошивка
@@ -1204,7 +1206,7 @@ namespace RTL.ViewModels
 
             string programPath = Properties.Settings.Default.FlashProgramPath;
             string projectPath = Properties.Settings.Default.FlashFirmwarePath;
-            int delay = 180000;
+            int delay = TestConfig.FlashDelay *1000;
 
             if (string.IsNullOrWhiteSpace(programPath) || !File.Exists(programPath))
             {

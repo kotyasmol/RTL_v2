@@ -198,6 +198,8 @@ namespace RTL.Models
         // 3. Прошивка Flash
         [JsonProperty("3. Прошивка flash")]
         public bool IsFlashProgrammingEnabled { get; set; }
+        [JsonProperty("flash_delay_timeout")]
+        public ushort FlashDelay { get; set; } 
 
         // 4. Прошивка MCU
         [JsonProperty("4. Прошивка MCU")]

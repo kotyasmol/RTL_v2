@@ -1106,6 +1106,7 @@ namespace RTL.ViewModels
                 {
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
+                        SaveVCCReport();
                         _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
                         return false;
                     }
@@ -1119,6 +1120,7 @@ namespace RTL.ViewModels
                 {
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
+                        SaveVCCReport();
                         _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
                         return false;
                     }
@@ -1130,13 +1132,14 @@ namespace RTL.ViewModels
                     {
                         bool success = status == 2;
 
+                        SaveVCCReport();
                         ValidateVCCResults();
 
                         _logger.LogToUser(
                             $"VCC Тест: {(success ? "Успешно" : "Ошибка")}; " +
-                            $"3.3V={StandRegisters.V3_3Report}; 1.5V={StandRegisters.V1_5Report}; " +
-                            $"1.1V={StandRegisters.V1_1Report}; CR2032={StandRegisters.CR2032Report}; " +
-                            $"CR2032 CPU={StandRegisters.CR2032_CPUReport}",
+                            $"3.3V={ReportModel.VCC.V33Report}; 1.5V={ReportModel.VCC.V15Report}; " +
+                            $"1.1V={ReportModel.VCC.V11Report}; CR2032={ReportModel.VCC.CR2032Report}; " +
+                            $"CR2032 CPU={ReportModel.VCC.CpuCR2032Report}",
                             success ? LogLevel.Success : LogLevel.Error
                         );
 
@@ -1150,7 +1153,7 @@ namespace RTL.ViewModels
 
                             if (shouldRestart)
                             {
-                                _logger.LogToUser("Тест VCC не прошел, но значения в допустимых пределах. Повторный запуск...", LogLevel.Warning);
+                                _logger.LogToUser("Тест VCC завершился с ошибкой, но значения в допустимых пределах. Повторный запуск...", LogLevel.Warning);
                                 goto restartTest;
                             }
                         }
@@ -1161,15 +1164,27 @@ namespace RTL.ViewModels
             }
             catch (TaskCanceledException)
             {
+                SaveVCCReport();
                 _logger.LogToUser("Тест VCC отменён.", LogLevel.Warning);
                 return false;
             }
             catch (Exception ex)
             {
+                SaveVCCReport();
                 _logger.LogToUser($"Ошибка во время теста VCC: {ex.Message}", LogLevel.Error);
                 return false;
             }
         }
+
+        private void SaveVCCReport()
+        {
+            ReportModel.VCC.V33Report = StandRegisters.V3_3Report;
+            ReportModel.VCC.V15Report = StandRegisters.V1_5Report;
+            ReportModel.VCC.V11Report = StandRegisters.V1_1Report;
+            ReportModel.VCC.CR2032Report = StandRegisters.CR2032Report;
+            ReportModel.VCC.CpuCR2032Report = StandRegisters.CR2032_CPUReport;
+        }
+
         private void ValidateVCCResults()
         {
             V33Status = ValidateRange(StandRegisters.V3_3Report, TestConfig.Vcc3V3Min, TestConfig.Vcc3V3Max);

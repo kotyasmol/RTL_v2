@@ -912,7 +912,7 @@ namespace RTL.ViewModels
                 if (cancellationToken.IsCancellationRequested) return false;
                 ProgressValue += 5;
                 // Подтест 2: VMAIN + VRES
-                if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
+                if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage4K5, cancellationToken))
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
@@ -922,7 +922,7 @@ namespace RTL.ViewModels
                 if (cancellationToken.IsCancellationRequested) return false;
                 ProgressValue += 5;
                 // VMAIN 2 
-                if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage4K5, cancellationToken))
+                if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage5K5, cancellationToken))
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
@@ -984,6 +984,10 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Тестирование DUT отключено, пропускаем.", LogLevel.Info);
                 }
+                ProgressValue += 5;
+
+
+                LogTestReports();
 
                 RtlStatus = 2;
                 await StopHard();
@@ -1013,6 +1017,7 @@ namespace RTL.ViewModels
                 if (!TestConfig.IsK5TestEnabled)
                 {
                     _logger.LogToUser($"Тест {testName} пропущен (отключен в профиле).", LogLevel.Warning);
+                    report.ResultK5 = true; // Если тест пропущен, считаем его успешным
                     return true;
                 }
 
@@ -1024,6 +1029,7 @@ namespace RTL.ViewModels
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
+                        report.ResultK5 = false; // Если тест прерван, он считается проваленным
                         return false;
                     }
                     await Task.Delay(500);
@@ -1035,13 +1041,14 @@ namespace RTL.ViewModels
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
+                        report.ResultK5 = false;
                         return false;
                     }
 
                     await Task.Delay(2000);
                     var status = getStatus();
 
-                    if (status == 2 || status == 3)
+                    if (status == 2 || status == 3) // 2 - Успешно, 3 - Ошибка
                     {
                         if (status == 3) // Ошибка теста → повторная проверка
                         {
@@ -1059,11 +1066,11 @@ namespace RTL.ViewModels
                         report.V12Report = StandRegisters.V12Report;
 
                         _logger.LogToUser(
-                            $"K5 {testName}: {success} {Environment.NewLine}" +
-                            $"55V={report.V55Report}{Environment.NewLine}" +
-                            $"52V={report.V52Report}{Environment.NewLine}" +
-                            $"Vout={report.VOUTReport}{Environment.NewLine}" +
-                            $"12V={report.V12Report}{Environment.NewLine}" +
+                            $"K5 Работа от {testName} = {(success ? "true" : "false")} {Environment.NewLine}" +
+                            $"55V={report.V55Report}; " +
+                            $"52V={report.V52Report}; " +
+                            $"Vout={report.VOUTReport}; " +
+                            $"12V={report.V12Report}; " +
                             $"Vref={report.V2048Report}",
                             success ? LogLevel.Success : LogLevel.Error
                         );
@@ -1075,9 +1082,11 @@ namespace RTL.ViewModels
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время теста {testName}: {ex.Message}", LogLevel.Error);
+                report.ResultK5 = false;
                 return false;
             }
         }
+
 
 
 
@@ -1106,7 +1115,7 @@ namespace RTL.ViewModels
                 {
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
-                        SaveVCCReport();
+                        SaveVCCReport(false); // Тест не был завершён
                         _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
                         return false;
                     }
@@ -1120,7 +1129,7 @@ namespace RTL.ViewModels
                 {
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
-                        SaveVCCReport();
+                        SaveVCCReport(false); // Тест не был завершён
                         _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
                         return false;
                     }
@@ -1132,7 +1141,7 @@ namespace RTL.ViewModels
                     {
                         bool success = status == 2;
 
-                        SaveVCCReport();
+                        SaveVCCReport(success);
                         ValidateVCCResults();
 
                         _logger.LogToUser(
@@ -1164,26 +1173,28 @@ namespace RTL.ViewModels
             }
             catch (TaskCanceledException)
             {
-                SaveVCCReport();
+                SaveVCCReport(false); // Тест не был завершён
                 _logger.LogToUser("Тест VCC отменён.", LogLevel.Warning);
                 return false;
             }
             catch (Exception ex)
             {
-                SaveVCCReport();
+                SaveVCCReport(false); // Тест не был завершён
                 _logger.LogToUser($"Ошибка во время теста VCC: {ex.Message}", LogLevel.Error);
                 return false;
             }
         }
 
-        private void SaveVCCReport()
+        private void SaveVCCReport(bool isSuccess)
         {
+            ReportModel.VCC.ResultVcc = isSuccess;
             ReportModel.VCC.V33Report = StandRegisters.V3_3Report;
             ReportModel.VCC.V15Report = StandRegisters.V1_5Report;
             ReportModel.VCC.V11Report = StandRegisters.V1_1Report;
             ReportModel.VCC.CR2032Report = StandRegisters.CR2032Report;
             ReportModel.VCC.CpuCR2032Report = StandRegisters.CR2032_CPUReport;
         }
+
 
         private void ValidateVCCResults()
         {
@@ -1213,25 +1224,29 @@ namespace RTL.ViewModels
             if (!TestConfig.IsFlashProgrammingEnabled)
             {
                 _logger.LogToUser("Прошивка FLASH отключена в настройках.", LogLevel.Warning);
+                ReportModel.FlashReport.FlashResult = false; // Прошивка не выполнялась
                 return true;
             }
-
 
             await WriteToRegisterWithRetryAsync(2307, 1);
 
             string programPath = Properties.Settings.Default.FlashProgramPath;
             string projectPath = Properties.Settings.Default.FlashFirmwarePath;
-            int delay = TestConfig.FlashDelay *1000;
+            int delay = TestConfig.FlashDelay * 1000;
 
             if (string.IsNullOrWhiteSpace(programPath) || !File.Exists(programPath))
             {
                 _logger.LogToUser($"Программа для прошивки не найдена: {programPath}", LogLevel.Error);
+                ReportModel.FlashReport.FlashResult = false;
+                ReportModel.FlashReport.FlashErrorMessage = "Программа для прошивки не найдена";
                 return false;
             }
 
             if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
             {
                 _logger.LogToUser($"Файл проекта для прошивки не найден: {projectPath}", LogLevel.Error);
+                ReportModel.FlashReport.FlashResult = false;
+                ReportModel.FlashReport.FlashErrorMessage = "Файл проекта для прошивки не найден";
                 return false;
             }
 
@@ -1261,6 +1276,8 @@ namespace RTL.ViewModels
                 if (hWnd == IntPtr.Zero)
                 {
                     _logger.LogToUser("Ошибка: Не удалось найти главное окно программы.", LogLevel.Error);
+                    ReportModel.FlashReport.FlashResult = false;
+                    ReportModel.FlashReport.FlashErrorMessage = "Не удалось найти главное окно программы";
                     return false;
                 }
 
@@ -1304,6 +1321,8 @@ namespace RTL.ViewModels
                 catch (Exception ex)
                 {
                     _logger.LogToUser($"Ошибка при вставке пути файла: {ex.Message}", LogLevel.Error);
+                    ReportModel.FlashReport.FlashResult = false;
+                    ReportModel.FlashReport.FlashErrorMessage = $"Ошибка вставки пути: {ex.Message}";
                     return false;
                 }
 
@@ -1322,16 +1341,6 @@ namespace RTL.ViewModels
                 await Task.Delay(500, cancellationToken);
                 sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
 
-                _logger.LogToUser("Прошивка запущена. Ожидание завершения...", LogLevel.Info);
-
-                for (int i = 0; i < delay / 1000; i++)
-                {
-                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
-                        throw new OperationCanceledException("Прошивка отменена пользователем.");
-
-                    await Task.Delay(1000, cancellationToken);
-                }
-
                 _logger.LogToUser("Прошивка завершена. Закрытие программы прошивки...", LogLevel.Info);
                 if (programProcess != null && !programProcess.HasExited)
                 {
@@ -1343,29 +1352,25 @@ namespace RTL.ViewModels
                 SetForegroundWindow(mainWindowHandle);
                 _logger.LogToUser("Переключение обратно на стенд завершено.", LogLevel.Info);
 
+                ReportModel.FlashReport.FlashResult = true;
                 return true;
             }
             catch (OperationCanceledException)
             {
                 _logger.LogToUser("Прошивка была прервана пользователем.", LogLevel.Warning);
-                if (programProcess != null && !programProcess.HasExited)
-                {
-                    programProcess.Kill();
-                    _logger.LogToUser("Программа прошивки принудительно закрыта из-за отмены.", LogLevel.Warning);
-                }
+                ReportModel.FlashReport.FlashResult = false;
+                ReportModel.FlashReport.FlashErrorMessage = "Прошивка отменена пользователем.";
                 return false;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время прошивки: {ex.Message}", LogLevel.Error);
-                if (programProcess != null && !programProcess.HasExited)
-                {
-                    programProcess.Kill();
-                    _logger.LogToUser("Программа прошивки принудительно закрыта из-за ошибки.", LogLevel.Warning);
-                }
+                ReportModel.FlashReport.FlashResult = false;
+                ReportModel.FlashReport.FlashErrorMessage = ex.Message;
                 return false;
             }
         }
+
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -2108,6 +2113,59 @@ namespace RTL.ViewModels
             }
         }
         #endregion Dut тесты
+
+        #region отчеты 
+
+
+        private void LogTestReports()
+        {
+            // Логирование отчётов K5
+            LogK5Report("VMAIN", ReportModel.Stage1K5);
+            LogK5Report("VMAIN + VRES", ReportModel.Stage2K5);
+            LogK5Report("VRES", ReportModel.Stage3K5);
+            LogK5Report("VMAIN + VRES (2)", ReportModel.Stage4K5);
+            LogK5Report("VMAIN (2)", ReportModel.Stage5K5);
+
+            // Логирование отчёта VCC
+            LogVCCReport();
+
+            // Логирование прошивки FLASH
+            LogFlashReport();
+        }
+
+        private void LogK5Report(string testName, StageK5TestReport report)
+        {
+            string resultText = report.ResultK5 ? "=true=" : "=false=";
+            string voltages = $"55V={report.V55Report}; 52V={report.V52Report}; Vout={report.VOUTReport}; 12V={report.V12Report}; Vref={report.V2048Report}";
+            _logger.LogToUser($"K5 Работа от \"{testName}\" {resultText}{voltages}\r\nТестирование K5. Работа от {testName}",
+                              report.ResultK5 ? LogLevel.Success : LogLevel.Error);
+        }
+
+        private void LogVCCReport()
+        {
+            string voltages = $"3.3V={ReportModel.VCC.V33Report}; 1.5V={ReportModel.VCC.V15Report}; " +
+                              $"1.1V={ReportModel.VCC.V11Report}; CR2032={ReportModel.VCC.CR2032Report}; " +
+                              $"CR2032 CPU={ReportModel.VCC.CpuCR2032Report}";
+
+            _logger.LogToUser($"VCC Тест: {voltages}", LogLevel.Info);
+        }
+        private void LogFlashReport()
+        {
+            if (TestConfig.IsFlashProgrammingEnabled == false)
+                return; // Если прошивка не выполнялась, не логируем её
+
+            string resultText = ReportModel.FlashReport.FlashResult == true ? "true" : "false";
+            string errorText = string.IsNullOrEmpty(ReportModel.FlashReport.FlashErrorMessage)
+                ? string.Empty
+                : $" Ошибка: {ReportModel.FlashReport.FlashErrorMessage}";
+
+            string flashPath = Properties.Settings.Default.FlashProgramPath;
+
+            _logger.LogToUser($"Прошивка Flash={resultText}{errorText}. Путь к прошивке: {flashPath}",
+                              ReportModel.FlashReport.FlashResult == true ? LogLevel.Success : LogLevel.Error);
+        }
+
+        #endregion отчеты 
         #endregion тестирование
         public RtlSwViewModel(Loggers logger)
         {

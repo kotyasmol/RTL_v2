@@ -33,6 +33,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="FTServiceUtils">
+      <HintPath>..\..\Downloads\Telegram Desktop\FTServiceUtils.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <Resource Include="Resources\Images\PlateImages\RTL_SW1.png" />
   </ItemGroup>
 

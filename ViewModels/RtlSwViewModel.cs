@@ -14,6 +14,7 @@ using static RTL.Logger.Loggers;
 using RTL.Logger;
 using RTL.Models;
 using RTL.Commands;
+using RTL.ReportGenerator;
 using System.Net.Http;
 using Newtonsoft.Json;
 using System.IO;
@@ -25,12 +26,13 @@ using WindowsInput.Native;
 using WindowsInput;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.WindowsAPICodePack.Sensors;
 namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
     {
 
-
+        private readonly ReportService _reportGenerator;
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -306,112 +308,113 @@ namespace RTL.ViewModels
 
         private SerialPort _serialPortDut;
 
-        public async Task<bool> WaitForDUTReadyAsync(CancellationToken cancellationToken, bool wasFlashed = false, int noLogTimeoutSeconds = 100, int maxWaitTimeSeconds = 1200)
+       public async Task<bool> WaitForDUTReadyAsync(CancellationToken cancellationToken, bool wasFlashed = false, int noLogTimeoutSeconds = 100, int maxWaitTimeSeconds = 1200)
+{
+    await WriteToRegisterWithRetryAsync(2301, 0);
+    await WriteToRegisterWithRetryAsync(2301, 1);
+    await Task.Delay(2000, cancellationToken);
+
+    try
+    {
+        if (!await TryInitializeDutComPortAsync(cancellationToken))
         {
-            await WriteToRegisterWithRetryAsync(2301, 0);
-            await WriteToRegisterWithRetryAsync(2301, 1);
-            await Task.Delay(2000, cancellationToken);
+            throw new InvalidOperationException("COM-порт для DUT не открыт.");
+        }
 
-            try
+        _logger.LogToUser("Ожидание завершения загрузки DUT...", LogLevel.Info);
+
+        DateTime startTime = DateTime.Now;
+        DateTime lastLogTime = DateTime.Now;
+        bool successPromptShown = false;
+        bool flashedOnce = false; // Флаг, который не даёт прошивать DUT повторно
+
+        while ((DateTime.Now - startTime).TotalSeconds < maxWaitTimeSeconds)
+        {
+            if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
             {
-                if (!await TryInitializeDutComPortAsync(cancellationToken))
-                {
-                    throw new InvalidOperationException("COM-порт для DUT не открыт.");
-                }
-
-                _logger.LogToUser("Ожидание завершения загрузки DUT...", LogLevel.Info);
-
-                DateTime startTime = DateTime.Now;
-                DateTime lastLogTime = DateTime.Now;
-                bool successPromptShown = false;
-                bool flashedOnce = false; // Флаг, который не даёт прошивать DUT повторно
-
-                while ((DateTime.Now - startTime).TotalSeconds < maxWaitTimeSeconds)
-                {
-                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
-                    {
-                        _logger.LogToUser("Ожидание DUT прервано (кнопка RUN в положении 0).", LogLevel.Warning);
-                        _serialPortDut?.Close();
-                        return false;
-                    }
-
-                    await Task.Delay(500, cancellationToken); // Проверка каждые 500 мс
-
-                    if (_serialPortDut.BytesToRead > 0)
-                    {
-                        string data = _serialPortDut.ReadExisting();
-                        _logger.Log($"Получены данные: {data.Trim()}", LogLevel.Debug);
-                        lastLogTime = DateTime.Now;
-
-                        if (data.Contains("root@TFortis:/#"))
-                        {
-                            _logger.Log("Обнаружено приглашение к вводу. DUT готов к работе.", LogLevel.Info);
-                            _logger.LogToUser("DUT готов к работе.", LogLevel.Success);
-                            return true;
-                        }
-                    }
-                    else if ((DateTime.Now - lastLogTime).TotalSeconds > noLogTimeoutSeconds && !successPromptShown)
-                    {
-                        _serialPortDut.Write("\n");
-                        _logger.Log("Нет новых логов. Отправлена команда \\n для проверки готовности.", LogLevel.Debug);
-                        successPromptShown = true;
-
-                        await Task.Delay(1000, cancellationToken);
-                        _serialPortDut.Write("ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'\n");
-                        _logger.Log("Отправлена команда ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'", LogLevel.Debug);
-
-                        await Task.Delay(2000, cancellationToken); // Ждём ответ
-
-                        if (_serialPortDut.BytesToRead > 0)
-                        {
-                            string response = _serialPortDut.ReadExisting();
-                            _logger.Log($"Ответ на команду ubus: {response.Trim()}", LogLevel.Debug);
-
-                            if (response.Contains("\"SW_VERS\": \"3\""))
-                            {
-                                _logger.Log("Обнаружен корректный ответ от ubus. DUT готов к работе.", LogLevel.Info);
-                                _logger.LogToUser("DUT готов к работе.", LogLevel.Success);
-                                return true;
-                            }
-
-                            if (response.Contains("\"SW_VERS\": \"0\""))
-                            {
-                                if (wasFlashed)
-                                {
-                                    _logger.LogToUser("Ошибка: SW_VERS = 0 после прошивки. Прекращаем процесс.", LogLevel.Error);
-                                    return false;
-                                }
-
-                                _logger.LogToUser("Ошибка: обнаружен SW_VERS = 0. Перепрошиваем MCU...", LogLevel.Warning);
-
-                                await WriteToRegisterWithRetryAsync(2301, 0);
-                                await WriteToRegisterWithRetryAsync(2302, 0);
-                                await Task.Delay(1000, cancellationToken);
-
-                                if (!await FlashMcuAsync(cancellationToken))
-                                {
-                                    _logger.LogToUser("Ошибка при повторной прошивке. Завершаем процесс.", LogLevel.Error);
-                                    return false;
-                                }
-
-                                _logger.LogToUser("Повторная загрузка DUT после прошивки...", LogLevel.Info);
-
-                                // Запускаем повторное ожидание, но теперь `wasFlashed = true`
-                                return await WaitForDUTReadyAsync(cancellationToken, true, noLogTimeoutSeconds, maxWaitTimeSeconds);
-                            }
-                        }
-                    }
-                }
-
-                _logger.LogToUser($"DUT не завершил загрузку за {maxWaitTimeSeconds} секунд.", LogLevel.Error);
+                _logger.LogToUser("Ожидание DUT прервано (кнопка RUN в положении 0).", LogLevel.Warning);
+                _serialPortDut?.Close();
                 return false;
             }
-            catch (Exception ex)
+
+            await Task.Delay(500, cancellationToken); // Проверка каждые 500 мс
+
+            if (_serialPortDut.BytesToRead > 0)
             {
-                _logger.LogToUser($"Ошибка при ожидании загрузки DUT: {ex.Message}", LogLevel.Error);
-                return false;
+                string data = _serialPortDut.ReadExisting();
+                _logger.Log($"Получены данные: {data.Trim()}", LogLevel.Debug);
+                lastLogTime = DateTime.Now;
+
+                if (data.Contains("root@TFortis:/#"))
+                {
+                    _logger.Log("Обнаружено приглашение к вводу. DUT готов к работе.", LogLevel.Info);
+                    _logger.LogToUser("DUT готов к работе.", LogLevel.Success);
+                    return true;
+                }
+            }
+            else if ((DateTime.Now - lastLogTime).TotalSeconds > noLogTimeoutSeconds && !successPromptShown)
+            {
+                _serialPortDut.Write("\n");
+                _logger.Log("Нет новых логов. Отправлена команда \\n для проверки готовности.", LogLevel.Debug);
+                successPromptShown = true;
+
+                await Task.Delay(1000, cancellationToken);
+                _serialPortDut.Write("ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'\n");
+                _logger.Log("Отправлена команда ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'", LogLevel.Debug);
+
+                await Task.Delay(2000, cancellationToken); // Ждём ответ
+
+                if (_serialPortDut.BytesToRead > 0)
+                {
+                    string response = _serialPortDut.ReadExisting();
+                    _logger.Log($"Ответ на команду ubus: {response.Trim()}", LogLevel.Debug);
+
+                    if (!response.Contains("\"SW_VERS\": \"0\""))
+                    {
+                        _logger.Log("Обнаружен корректный ответ от ubus. DUT готов к работе.", LogLevel.Info);
+                        _logger.LogToUser("DUT готов к работе.", LogLevel.Success);
+                        return true;
+                    }
+
+                    if (response.Contains("\"SW_VERS\": \"0\""))
+                    {
+                        if (wasFlashed)
+                        {
+                            _logger.LogToUser("Ошибка: SW_VERS = 0 после прошивки. Прекращаем процесс.", LogLevel.Error);
+                            return false;
+                        }
+
+                        _logger.LogToUser("Ошибка: обнаружен SW_VERS = 0. Перепрошиваем MCU...", LogLevel.Warning);
+
+                        await WriteToRegisterWithRetryAsync(2301, 0);
+                        await WriteToRegisterWithRetryAsync(2302, 0);
+                        await Task.Delay(1000, cancellationToken);
+
+                        if (!await FlashMcuAsync(cancellationToken))
+                        {
+                            _logger.LogToUser("Ошибка при повторной прошивке. Завершаем процесс.", LogLevel.Error);
+                            return false;
+                        }
+
+                        _logger.LogToUser("Повторная загрузка DUT после прошивки...", LogLevel.Info);
+
+                        // Запускаем повторное ожидание, но теперь `wasFlashed = true`
+                        return await WaitForDUTReadyAsync(cancellationToken, true, noLogTimeoutSeconds, maxWaitTimeSeconds);
+                    }
+                }
             }
         }
+
+        _logger.LogToUser($"DUT не завершил загрузку за {maxWaitTimeSeconds} секунд.", LogLevel.Error);
+        return false;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogToUser($"Ошибка при ожидании загрузки DUT: {ex.Message}", LogLevel.Error);
+        return false;
+    }
+}
+
 
         public async Task<bool> TryInitializeDutComPortAsync(CancellationToken cancellationToken)
         {
@@ -832,6 +835,9 @@ namespace RTL.ViewModels
                 await WriteToRegisterWithRetryAsync(2368, TestConfig.DutTamperLedMin);
                 await WriteToRegisterWithRetryAsync(2369, TestConfig.DutTamperLedMax);
 
+                _reportGenerator.InitializeNewReportFile(Properties.Settings.Default.ReportFolderPath);                 // Инициализируем новый отчёт
+
+
                 RtlStatus = 1;
 
                 K5TestStatus = 1;
@@ -856,9 +862,6 @@ namespace RTL.ViewModels
                 ProgressValue = 0;
 
 
-                // Инициализируем новый отчёт
-                //ReportGenerator.InitializeNewReportFile(Config.ReportPath);
-
                 await Task.Delay(500);
                 _logger.LogToUser("Стенд подготовлен для тестирования.", LogLevel.Info);
 
@@ -875,9 +878,6 @@ namespace RTL.ViewModels
         {
             try
             {
-                
-
-
                 IsTestRunning = true;
                 ProgressValue += 5;
                 K5TestStatus = 1;
@@ -886,6 +886,7 @@ namespace RTL.ViewModels
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
+                    _reportGenerator.PrependToReport($"test_result=false=0");
                     await StopHard();
                     return false;
                 }
@@ -896,6 +897,7 @@ namespace RTL.ViewModels
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
+                    _reportGenerator.PrependToReport($"test_result=false=0");
                     await StopHard();
                     return false;
                 }
@@ -906,6 +908,7 @@ namespace RTL.ViewModels
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
+                    _reportGenerator.PrependToReport($"test_result=false=0");
                     await StopHard();
                     return false;
                 }
@@ -916,6 +919,7 @@ namespace RTL.ViewModels
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
+                    _reportGenerator.PrependToReport($"test_result=false=0");
                     await StopHard();
                     return false;
                 }
@@ -926,6 +930,7 @@ namespace RTL.ViewModels
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
+                    _reportGenerator.PrependToReport($"test_result=false=0");
                     await StopHard();
                     return false;
                 }
@@ -938,6 +943,7 @@ namespace RTL.ViewModels
                 if (!await RunVCCTestAsync(cancellationToken))
                 {
                     _logger.LogToUser("Тест VCC завершен с ошибкой.", LogLevel.Error);
+                    _reportGenerator.PrependToReport($"test_result=false=0");
                     await StopHard();
                     return false;
                 }
@@ -949,12 +955,13 @@ namespace RTL.ViewModels
                     FlashStatus = 3;
                     RtlStatus = 3;
                     _logger.LogToUser("Прошивка flash завершена с ошибкой", LogLevel.Error);
+                    _reportGenerator.PrependToReport($"test_result=false=0");
                     await StopHard();
                     return false;
                 }
                 FlashStatus = 2;
-                await WriteToRegisterWithRetryAsync(2307, 0);
-                await Task.Delay(2000);//------------------------------------------выключаем ресет после двух прошивок 
+                await WriteToRegisterWithRetryAsync(2307, 0); //------------------------------------------выключаем ресет после двух прошивок 
+                await Task.Delay(2000);
 
                 ProgressValue += 5;
                 // MCU прошивка
@@ -962,13 +969,14 @@ namespace RTL.ViewModels
                 {
                     RtlStatus = 3;
                     _logger.LogToUser("Прошивка mcu завершена с ошибкой", LogLevel.Error);
+                    _reportGenerator.PrependToReport($"test_result=false=0");
                     await StopHard();
                     return false;
                 }
 
-                
 
-                ProgressValue += 5; 
+
+                ProgressValue += 5;
                 // DUT
                 if (IsDutSelfTestEnabled)
                 {
@@ -976,6 +984,7 @@ namespace RTL.ViewModels
                     if (!await RunDutSelfTestAsync(cancellationToken))
                     {
                         _logger.LogToUser("Тестирование DUT завершилось с ошибкой.", LogLevel.Error);
+                        _reportGenerator.PrependToReport($"test_result=false=0");
                         await StopHard();
                         return false;
                     }
@@ -985,11 +994,20 @@ namespace RTL.ViewModels
                     _logger.LogToUser("Тестирование DUT отключено, пропускаем.", LogLevel.Info);
                 }
                 ProgressValue += 5;
-
-
-                LogTestReports();
-
                 RtlStatus = 2;
+
+
+                //снизу вверх 
+                _reportGenerator.PrependToReport($"session=true=session_id - ID сессии");
+                _reportGenerator.PrependToReport($"stand_id=true=серийный номер стенда");
+                _reportGenerator.PrependToReport($"serial_num=true=серийный номер платы (полученный от сервера)");
+                _reportGenerator.PrependToReport($"test_result=true=1"); //если весь тест успешный
+                _reportGenerator.PrependToReport($"test_type=true=0");
+
+
+
+
+
                 await StopHard();
                 return true;
             }
@@ -1029,7 +1047,7 @@ namespace RTL.ViewModels
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
-                        report.ResultK5 = false; // Если тест прерван, он считается проваленным
+                        report.ResultK5 = false;
                         return false;
                     }
                     await Task.Delay(500);
@@ -1066,13 +1084,24 @@ namespace RTL.ViewModels
                         report.V12Report = StandRegisters.V12Report;
 
                         _logger.LogToUser(
-                            $"K5 Работа от {testName} = {(success ? "true" : "false")} {Environment.NewLine}" +
+                            $"K5 Работа от {testName}{(success ? "=true=" : "=false=")} {Environment.NewLine}" +
                             $"55V={report.V55Report}; " +
                             $"52V={report.V52Report}; " +
                             $"Vout={report.VOUTReport}; " +
                             $"12V={report.V12Report}; " +
                             $"Vref={report.V2048Report}",
                             success ? LogLevel.Success : LogLevel.Error
+                        );
+
+
+                        // Добавляем запись в общий отчёт
+                        _reportGenerator.AppendToReport(
+                            $"K5 Работа от {testName}{(success ? "=true=" : "=false=")}; " +
+                            $"55V={report.V55Report}; " +
+                            $"52V={report.V52Report}; " +
+                            $"Vout={report.VOUTReport}; " +
+                            $"12V={report.V12Report}; " +
+                            $"Vref={report.V2048Report}"
                         );
 
                         return success;
@@ -1086,6 +1115,7 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+
 
 
 
@@ -1145,11 +1175,19 @@ namespace RTL.ViewModels
                         ValidateVCCResults();
 
                         _logger.LogToUser(
-                            $"VCC Тест: {(success ? "Успешно" : "Ошибка")}; " +
+                            $"VCC{(success ? "=true=" : "=false=")}; " +
                             $"3.3V={ReportModel.VCC.V33Report}; 1.5V={ReportModel.VCC.V15Report}; " +
                             $"1.1V={ReportModel.VCC.V11Report}; CR2032={ReportModel.VCC.CR2032Report}; " +
                             $"CR2032 CPU={ReportModel.VCC.CpuCR2032Report}",
                             success ? LogLevel.Success : LogLevel.Error
+                        );
+                        _reportGenerator.AppendToReport(
+                            $"VCC{(success ? "=true=" : "=false=")}; " +
+                            $"3.3V={ReportModel.VCC.V33Report}; " +
+                            $"1.5V={ReportModel.VCC.V15Report}; " +
+                            $"1.1V={ReportModel.VCC.V11Report}; " +
+                            $"CR2032={ReportModel.VCC.CR2032Report}; " +
+                            $"CR2032 CPU={ReportModel.VCC.CpuCR2032Report}"
                         );
 
                         if (!success)
@@ -1239,6 +1277,7 @@ namespace RTL.ViewModels
                 _logger.LogToUser($"Программа для прошивки не найдена: {programPath}", LogLevel.Error);
                 ReportModel.FlashReport.FlashResult = false;
                 ReportModel.FlashReport.FlashErrorMessage = "Программа для прошивки не найдена";
+                _reportGenerator.AppendToReport($"прошивка Flash=false={ReportModel.FlashReport.FlashErrorMessage}; Path={projectPath}");
                 return false;
             }
 
@@ -1247,6 +1286,7 @@ namespace RTL.ViewModels
                 _logger.LogToUser($"Файл проекта для прошивки не найден: {projectPath}", LogLevel.Error);
                 ReportModel.FlashReport.FlashResult = false;
                 ReportModel.FlashReport.FlashErrorMessage = "Файл проекта для прошивки не найден";
+                _reportGenerator.AppendToReport($"прошивка Flash=false={ReportModel.FlashReport.FlashErrorMessage}; Path={projectPath}");
                 return false;
             }
 
@@ -1278,6 +1318,7 @@ namespace RTL.ViewModels
                     _logger.LogToUser("Ошибка: Не удалось найти главное окно программы.", LogLevel.Error);
                     ReportModel.FlashReport.FlashResult = false;
                     ReportModel.FlashReport.FlashErrorMessage = "Не удалось найти главное окно программы";
+                    _reportGenerator.AppendToReport($"прошивка Flash=false={ReportModel.FlashReport.FlashErrorMessage}; Path={projectPath}");
                     return false;
                 }
 
@@ -1323,6 +1364,7 @@ namespace RTL.ViewModels
                     _logger.LogToUser($"Ошибка при вставке пути файла: {ex.Message}", LogLevel.Error);
                     ReportModel.FlashReport.FlashResult = false;
                     ReportModel.FlashReport.FlashErrorMessage = $"Ошибка вставки пути: {ex.Message}";
+                    _reportGenerator.AppendToReport($"прошивка Flash=false={ReportModel.FlashReport.FlashErrorMessage}; Path={projectPath}");
                     return false;
                 }
 
@@ -1353,6 +1395,7 @@ namespace RTL.ViewModels
                 _logger.LogToUser("Переключение обратно на стенд завершено.", LogLevel.Info);
 
                 ReportModel.FlashReport.FlashResult = true;
+                _reportGenerator.AppendToReport($"прошивка Flash=true; Path={projectPath}");
                 return true;
             }
             catch (OperationCanceledException)
@@ -1360,6 +1403,7 @@ namespace RTL.ViewModels
                 _logger.LogToUser("Прошивка была прервана пользователем.", LogLevel.Warning);
                 ReportModel.FlashReport.FlashResult = false;
                 ReportModel.FlashReport.FlashErrorMessage = "Прошивка отменена пользователем.";
+                _reportGenerator.AppendToReport($"прошивка Flash=false={ReportModel.FlashReport.FlashErrorMessage}; Path={projectPath}");
                 return false;
             }
             catch (Exception ex)
@@ -1367,9 +1411,11 @@ namespace RTL.ViewModels
                 _logger.LogToUser($"Ошибка во время прошивки: {ex.Message}", LogLevel.Error);
                 ReportModel.FlashReport.FlashResult = false;
                 ReportModel.FlashReport.FlashErrorMessage = ex.Message;
+                _reportGenerator.AppendToReport($"прошивка Flash=false={ReportModel.FlashReport.FlashErrorMessage}; Path={projectPath}");
                 return false;
             }
         }
+
 
 
         [DllImport("user32.dll")]
@@ -1387,7 +1433,7 @@ namespace RTL.ViewModels
             }
 
             string flashToolPath = Properties.Settings.Default.SwdProgramPath; // Путь к flash.bat
-            string firmwarePath = Properties.Settings.Default.SwdFirmwarePath; // Путь к файлу прошивки
+            string firmwarePath = Properties.Settings.Default.SwdFirmwarePath; // Путь к файлу прошивки из профиля
             string workingDirectory = Path.GetDirectoryName(flashToolPath); // Рабочая директория
 
             _logger.Log("Подготовка к прошивке MCU...", LogLevel.Info);
@@ -1395,12 +1441,14 @@ namespace RTL.ViewModels
             if (!File.Exists(flashToolPath))
             {
                 _logger.LogToUser($"Ошибка: Не найден скрипт прошивки по пути {flashToolPath}.", LogLevel.Error);
+                _reportGenerator.AppendToReport($"прошивка SWD=false=скрипт прошивки {flashToolPath} не найден");
                 return false;
             }
 
-            if (!File.Exists(firmwarePath))
+            if (string.IsNullOrEmpty(firmwarePath) || !File.Exists(firmwarePath))
             {
                 _logger.LogToUser($"Ошибка: Файл прошивки {firmwarePath} не найден.", LogLevel.Error);
+                _reportGenerator.AppendToReport($"прошивка SWD=false=Файл прошивки {firmwarePath} не найден");
                 return false;
             }
 
@@ -1410,21 +1458,19 @@ namespace RTL.ViewModels
                 await WriteToRegisterWithRetryAsync(2301, 1, 3);
                 await Task.Delay(1000, cancellationToken); // Ждём 1 секунду перед прошивкой
 
-                // Корректный формат пути для передачи в аргумент командной строки
                 string formattedFirmwarePath = $"\"{firmwarePath.Replace("\\", "/")}\"";
-
                 _logger.LogToUser($"Используемый файл прошивки: {firmwarePath}", LogLevel.Debug);
-                _logger.LogToUser($"Запуск прошивки MCU... (Прошивка: {firmwarePath})", LogLevel.Info);
+                _logger.LogToUser("Запуск прошивки MCU...", LogLevel.Info);
 
                 var processStartInfo = new ProcessStartInfo
                 {
                     FileName = flashToolPath,
-                    Arguments = formattedFirmwarePath, // Передаём путь к файлу прошивки как аргумент
+                    Arguments = formattedFirmwarePath,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,
-                    WorkingDirectory = workingDirectory // Устанавливаем рабочую директорию
+                    WorkingDirectory = workingDirectory
                 };
 
                 _logger.LogToUser($"Запуск процесса: {flashToolPath}", LogLevel.Debug);
@@ -1454,16 +1500,19 @@ namespace RTL.ViewModels
                     if (process.ExitCode != 0)
                     {
                         _logger.LogToUser($"Ошибка прошивки! Код выхода: {process.ExitCode}", LogLevel.Error);
+                        _reportGenerator.AppendToReport($"прошивка SWD=false={process.ExitCode}");
                         return false;
                     }
 
                     _logger.LogToUser("Прошивка завершена успешно!", LogLevel.Success);
+                    _reportGenerator.AppendToReport($"прошивка SWD=true={firmwarePath}");
                     return true;
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время прошивки MCU: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"прошивка SWD=false={ex.Message}");
                 return false;
             }
         }
@@ -1490,7 +1539,7 @@ namespace RTL.ViewModels
             }
             ProgressValue += 5;
             // Ожидание загрузки DUT после прошивки
-            if (!await WaitForDUTReadyAsync(cancellationToken,false, 30, 180))
+            if (!await WaitForDUTReadyAsync(cancellationToken, false, 30, 180))
             {
                 RtlStatus = 3;
                 ConsoleStatus = 3;
@@ -1687,11 +1736,13 @@ namespace RTL.ViewModels
                 if (!await VerifySensorStatus(sensorName, "0", cancellationToken)) return false;
 
                 _logger.LogToUser($"Тестирование {sensorName} успешно завершено.", LogLevel.Success);
+                _reportGenerator.AppendToReport($"{sensorName}=true=1");
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования {sensorName}: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"{sensorName}=false={ex.Message}");
                 return false;
             }
         }
@@ -1716,6 +1767,7 @@ namespace RTL.ViewModels
                 if (!sensorStatus.Contains($"\"{sensorName}\": \"{expectedStatus}\""))
                 {
                     _logger.Log($"Ошибка: {sensorName} имеет состояние {sensorStatus}, ожидалось {expectedStatus}.", LogLevel.Error);
+                    _reportGenerator.AppendToReport($"{sensorName}=false=Ошибка: ожидалось {expectedStatus}, получено {sensorStatus}");
                     return false;
                 }
             }
@@ -1724,14 +1776,16 @@ namespace RTL.ViewModels
             return true;
         }
 
+        #endregion SENSOR 1 + 2
 
-        #endregion SENSOR 1 + 2 
+
         #region RELAY
         private async Task<bool> RunRelayTestAsync(ushort relayStatusRegister, CancellationToken cancellationToken)
         {
             try
             {
                 _logger.LogToUser("Тест RELAY запущен...", LogLevel.Info);
+
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"0\"}'");
                 _logger.Log("Реле переведено в состояние 0 через консоль.", LogLevel.Info);
 
@@ -1739,12 +1793,14 @@ namespace RTL.ViewModels
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                 {
                     _logger.LogToUser("Тест RELAY прерван.", LogLevel.Warning);
+                    _reportGenerator.AppendToReport($"Relay=false=тест прерван вручную");
                     return false;
                 }
 
                 if (StandRegisters.RelayIn != 0)
                 {
                     _logger.Log($"Состояние реле в регистре {relayStatusRegister} не совпадает с ожидаемым (0).", LogLevel.Warning);
+                    _reportGenerator.AppendToReport($"{relayStatusRegister}=false=Ошибка: ожидалось 0, получено {StandRegisters.RelayIn}");
                     return false;
                 }
 
@@ -1755,40 +1811,48 @@ namespace RTL.ViewModels
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                 {
                     _logger.LogToUser("Тест RELAY прерван.", LogLevel.Warning);
+                    _reportGenerator.AppendToReport($"Relay=false=тест прерван вручную");
                     return false;
                 }
 
                 if (StandRegisters.RelayIn != 1)
                 {
                     _logger.Log($"Состояние реле в регистре {relayStatusRegister} не совпадает с ожидаемым (1).", LogLevel.Warning);
+                    _reportGenerator.AppendToReport($"Relay=false=Ошибка: ожидалось 1, получено {StandRegisters.RelayIn}");
                     return false;
                 }
 
                 await SendConsoleCommandAsync("ubus call tf_hwsys setParam '{\"name\":\"relay\",\"value\":\"0\"}'");
                 _logger.Log("Реле возвращено в состояние 0 через консоль.", LogLevel.Info);
 
+
                 await Task.Delay(8000, cancellationToken);
                 if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                 {
                     _logger.LogToUser("Тест RELAY прерван.", LogLevel.Warning);
+                    _reportGenerator.AppendToReport($"Relay=false=тест прерван вручную");
                     return false;
                 }
 
                 if (StandRegisters.RelayIn != 0)
                 {
                     _logger.Log($"Состояние реле в регистре {relayStatusRegister} не совпадает с ожидаемым (0).", LogLevel.Warning);
+                    _reportGenerator.AppendToReport($"Relay=false=Ошибка: ожидалось 0, получено {StandRegisters.RelayIn}");
                     return false;
                 }
 
                 _logger.LogToUser("Тестирование релейного выхода успешно завершено.", LogLevel.Success);
+                _reportGenerator.AppendToReport($"Relay=true=1");
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка при тестировании реле: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"Relay=false={ex.Message}");
                 return false;
             }
         }
+
         #endregion RELAY
         #region TAMPER
         public async Task<bool> RunTamperTestAsync(CancellationToken cancellationToken)
@@ -1802,6 +1866,7 @@ namespace RTL.ViewModels
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser("Тест Tamper прерван.", LogLevel.Warning);
+                        _reportGenerator.AppendToReport($"Tamper=false=тест прерван вручную.");
                         return false;
                     }
 
@@ -1823,6 +1888,7 @@ namespace RTL.ViewModels
                 }
 
                 _logger.Log($"Ошибка: Tamper после повторной проверки имеет неверное состояние. Ожидалось {expectedStatus}.", LogLevel.Error);
+                _reportGenerator.AppendToReport($"Tamper=false=Tamper после повторной проверки имеет неверное состояние. Ожидалось {expectedStatus}.");
                 return false;
             }
 
@@ -1895,11 +1961,13 @@ namespace RTL.ViewModels
                     return false;
 
                 _logger.LogToUser("Тестирование датчика вскрытия (Tamper) успешно завершено.", LogLevel.Success);
+                _reportGenerator.AppendToReport($"Tamper=true=1");
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования Tamper: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"Tamper=false={ex.Message}");
                 return false;
             }
         }
@@ -1925,6 +1993,7 @@ namespace RTL.ViewModels
                     if (!rs485Status.Contains($"\"upsModeAvalible\": \"{expectedStatus}\""))
                     {
                         _logger.Log($"Ошибка: RS485 имеет состояние {rs485Status}, ожидалось {expectedStatus}.", LogLevel.Error);
+                        _reportGenerator.AppendToReport($"RS485=false=RS485 имеет состояние {rs485Status}, ожидалось {expectedStatus}.");
                         return false;
                     }
                 }
@@ -1942,11 +2011,13 @@ namespace RTL.ViewModels
                     return false;
 
                 _logger.LogToUser("Тестирование RS485 успешно завершено.", LogLevel.Success);
+                _reportGenerator.AppendToReport($"RS485=true=1");
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования RS485: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"RS485=false={ex.Message}");
                 return false;
             }
         }
@@ -1966,6 +2037,7 @@ namespace RTL.ViewModels
                 if (!sensorConnectedResponse.Contains("\"sensorConnected\": \"1\""))
                 {
                     _logger.LogToUser("Ошибка: I2C не подключён.", LogLevel.Error);
+                    _reportGenerator.AppendToReport($"I2C=false=I2C не подключен");
                     return false;
                 }
 
@@ -1980,17 +2052,20 @@ namespace RTL.ViewModels
                 if (temperature == null)
                 {
                     _logger.LogToUser("Ошибка: Не удалось извлечь температуру из ответа.", LogLevel.Error);
+                    _reportGenerator.AppendToReport($"I2C=false=Не удалось извлечь температуру из ответа");
                     return false;
                 }
 
                 _logger.LogToUser($"Температура I2C: {temperature} °C.", LogLevel.Info);
                 _logger.LogToUser("Тестирование I2C успешно завершено.", LogLevel.Success);
+                _reportGenerator.AppendToReport($"I2C=true=1");
 
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования I2C: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"I2C=false={ex.Message}");
                 return false;
             }
         }
@@ -2046,6 +2121,8 @@ namespace RTL.ViewModels
                 if (string.IsNullOrWhiteSpace(poeResponse))
                 {
                     _logger.LogToUser("Ошибка: Команда 'ubus call poe info' не вернула ответ.", LogLevel.Error);
+                    _reportGenerator.AppendToReport($"poe=false=Команда 'ubus call poe info' не вернула ответ");
+
                     return false;
                 }
 
@@ -2054,15 +2131,18 @@ namespace RTL.ViewModels
                 if (poeResponse.Contains("\"budget\":"))
                 {
                     _logger.LogToUser("Тестирование PoE успешно завершено.", LogLevel.Success);
+                    _reportGenerator.AppendToReport($"poe=true=1");
                     return true;
                 }
 
                 _logger.Log("Ошибка: В ответе отсутствует ключ 'budget'.", LogLevel.Error);
+                _reportGenerator.AppendToReport($"poe=false=В ответе отсутствует ключ 'budget'");
                 return false;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования PoE: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"poe=false={ex.Message}");
                 return false;
             }
         }
@@ -2114,66 +2194,17 @@ namespace RTL.ViewModels
         }
         #endregion Dut тесты
 
-        #region отчеты 
 
-
-        private void LogTestReports()
-        {
-            // Логирование отчётов K5
-            LogK5Report("VMAIN", ReportModel.Stage1K5);
-            LogK5Report("VMAIN + VRES", ReportModel.Stage2K5);
-            LogK5Report("VRES", ReportModel.Stage3K5);
-            LogK5Report("VMAIN + VRES (2)", ReportModel.Stage4K5);
-            LogK5Report("VMAIN (2)", ReportModel.Stage5K5);
-
-            // Логирование отчёта VCC
-            LogVCCReport();
-
-            // Логирование прошивки FLASH
-            LogFlashReport();
-        }
-
-        private void LogK5Report(string testName, StageK5TestReport report)
-        {
-            string resultText = report.ResultK5 ? "=true=" : "=false=";
-            string voltages = $"55V={report.V55Report}; 52V={report.V52Report}; Vout={report.VOUTReport}; 12V={report.V12Report}; Vref={report.V2048Report}";
-            _logger.LogToUser($"K5 Работа от \"{testName}\" {resultText}{voltages}\r\nТестирование K5. Работа от {testName}",
-                              report.ResultK5 ? LogLevel.Success : LogLevel.Error);
-        }
-
-        private void LogVCCReport()
-        {
-            string voltages = $"3.3V={ReportModel.VCC.V33Report}; 1.5V={ReportModel.VCC.V15Report}; " +
-                              $"1.1V={ReportModel.VCC.V11Report}; CR2032={ReportModel.VCC.CR2032Report}; " +
-                              $"CR2032 CPU={ReportModel.VCC.CpuCR2032Report}";
-
-            _logger.LogToUser($"VCC Тест: {voltages}", LogLevel.Info);
-        }
-        private void LogFlashReport()
-        {
-            if (TestConfig.IsFlashProgrammingEnabled == false)
-                return; // Если прошивка не выполнялась, не логируем её
-
-            string resultText = ReportModel.FlashReport.FlashResult == true ? "true" : "false";
-            string errorText = string.IsNullOrEmpty(ReportModel.FlashReport.FlashErrorMessage)
-                ? string.Empty
-                : $" Ошибка: {ReportModel.FlashReport.FlashErrorMessage}";
-
-            string flashPath = Properties.Settings.Default.FlashProgramPath;
-
-            _logger.LogToUser($"Прошивка Flash={resultText}{errorText}. Путь к прошивке: {flashPath}",
-                              ReportModel.FlashReport.FlashResult == true ? LogLevel.Success : LogLevel.Error);
-        }
-
-        #endregion отчеты 
         #endregion тестирование
-        public RtlSwViewModel(Loggers logger)
+        public RtlSwViewModel(Loggers logger, ReportService report)
         {
 
 
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _logger.Log("RtlSwViewModel инициализирован", Loggers.LogLevel.Success);
+
+            _reportGenerator = report;
 
             ToggleModbusConnectionCommand = new RelayCommand(async () => await ToggleModbusConnection(), CanExecuteCommand);
             ConnectToServerCommand = new RelayCommand(async () => await TryConnectToServerAsync(), CanExecuteCommand);

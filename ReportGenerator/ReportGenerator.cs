@@ -7,14 +7,14 @@ using System.Threading.Tasks;
 
 namespace RTL.ReportGenerator
 {
-    public static class ReportGenerator
+    public  class ReportService
     {
-        private static string _currentReportFile;
+        private  string _currentReportFile;
 
         /// <summary>
         /// Устанавливает новый путь к файлу отчёта при старте тестирования.
         /// </summary>
-        public static void InitializeNewReportFile(string reportDirectory)
+        public  void InitializeNewReportFile(string reportDirectory)
         {
             if (!Directory.Exists(reportDirectory))
             {
@@ -28,7 +28,7 @@ namespace RTL.ReportGenerator
         /// <summary>
         /// Добавляет строку в текущий файл отчёта.
         /// </summary>
-        public static void AppendToReport(string content)
+        public  void AppendToReport(string content)
         {
             if (string.IsNullOrEmpty(_currentReportFile))
             {
@@ -44,5 +44,30 @@ namespace RTL.ReportGenerator
                 Console.WriteLine($"Ошибка записи в файл отчёта: {ex.Message}");
             }
         }
+
+        public void PrependToReport(string content)
+        {
+            if (string.IsNullOrEmpty(_currentReportFile))
+            {
+                throw new InvalidOperationException("Файл отчёта не инициализирован. Вызовите InitializeNewReportFile.");
+            }
+
+            try
+            {
+                // Читаем весь файл в память
+                string existingContent = File.Exists(_currentReportFile) ? File.ReadAllText(_currentReportFile) : string.Empty;
+
+                // Добавляем новую строку в начало
+                string newContent = content + Environment.NewLine + existingContent;
+
+                // Записываем обновлённое содержимое обратно в файл
+                File.WriteAllText(_currentReportFile, newContent, Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка записи в файл отчёта: {ex.Message}");
+            }
+        }
+
     }
 }

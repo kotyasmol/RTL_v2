@@ -31,8 +31,8 @@ namespace RTL.Models
 
         public static FlashTestReport FlashReport { get; set; } = new FlashTestReport();
 
-        // Linux Tests
-        public static DutTestReport Dut { get; set; } = new DutTestReport();
+
+
 
     }
 
@@ -62,34 +62,5 @@ namespace RTL.Models
         public string FlashErrorMessage { get; set; } = string.Empty;
     }
 
-    public class DutTestReport
-    {
-        public int StatusTamperCPU { get; set; } // 2319
-        public int StatusTamperLED { get; set; }
-        public double SensorTemperature { get; set; }
-
-        public bool SelfTestSuccess { get; set; }
-        public string SelfTestMessage { get; set; }
-
-        public bool Sensor1Success { get; set; }
-        public string Sensor1Message { get; set; }
-
-        public bool Sensor2Success { get; set; }
-        public string Sensor2Message { get; set; }
-
-        public bool RelaySuccess { get; set; }
-        public string RelayMessage { get; set; }
-
-        public bool TamperSuccess { get; set; }
-        public string TamperMessage { get; set; }
-
-        public bool RS485Success { get; set; }
-        public string RS485Message { get; set; }
-
-        public bool I2CSuccess { get; set; }
-        public string I2CMessage { get; set; }
-
-        public bool PoESuccess { get; set; }
-        public string PoEMessage { get; set; }
-    }
+ 
 }

@@ -27,6 +27,8 @@ using WindowsInput;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.WindowsAPICodePack.Sensors;
+using FTServiceUtils;
+using Newtonsoft.Json.Linq;
 namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
@@ -466,6 +468,9 @@ namespace RTL.ViewModels
             get => _isServerConnected;
             set => SetAndNotify(ref _isServerConnected, value);
         }
+
+        public string SessionId;  //id сессии, без него не отправишь рез-ты
+
         public RelayCommand ConnectToServerCommand { get; }
         private async Task<bool> TryConnectToServerAsync()
         {
@@ -489,6 +494,7 @@ namespace RTL.ViewModels
                         if (response.IsSuccessStatusCode && !responseContent.Contains("error"))
                         {
                             _logger.LogToUser($"✅ Подключение к серверу успешно. Код: {response.StatusCode}", LogLevel.Success);
+                            SessionId = GetSessionId("alex", "alex", 5); //id сессии, без него не отправишь рез-ты
                             IsServerConnected = true;
                             return true;
                         }
@@ -522,6 +528,54 @@ namespace RTL.ViewModels
             IsServerConnected = false;
             return false;
         }
+        private string GetSessionId(string login, string password, int timezone)
+        {
+            string url = $"http://iccid.fort-telecom.ru/api/Api.svc/connect?login={login}&password={password}&timezone={timezone}";
+
+            try
+            {
+                using (HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+                {
+                    client.DefaultRequestHeaders.Add("User-Agent", "ftstand");
+
+                    HttpResponseMessage response = client.GetAsync(url).Result;
+                    string responseContent = response.Content.ReadAsStringAsync().Result;
+
+                    _logger.LogToUser($"📥 Ответ сервера (sessionId): {responseContent}", LogLevel.Debug);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogToUser($"⚠️ Ошибка получения sessionId. Код: {response.StatusCode}, Ответ: {responseContent}", LogLevel.Warning);
+                        return null;
+                    }
+
+                    // Убираем кавычки, если сервер вернул строку
+                    string sessionId = responseContent.Trim('"');
+
+                    if (!string.IsNullOrEmpty(sessionId))
+                    {
+                        _logger.LogToUser($"✅ Успешно получен sessionId: {sessionId}", LogLevel.Success);
+                        return sessionId;
+                    }
+                    else
+                    {
+                        _logger.LogToUser($"⚠️ Сервер не вернул корректный sessionId: {responseContent}", LogLevel.Warning);
+                    }
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogToUser($"🌐 Ошибка сети при получении sessionId: {ex.Message}", LogLevel.Error);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"❌ Ошибка при получении sessionId: {ex.Message}", LogLevel.Error);
+            }
+
+            return null;
+        }
+
+
 
 
         #endregion подключение к серверу
@@ -794,6 +848,7 @@ namespace RTL.ViewModels
         #region тестирование
 
         private bool _isCancellationRequested;
+        public static TestResult ServerTestResult; // КЛАСС ДЛЯ ОТПРАВКИ ОТЧЕТОВ 
 
         private async Task<bool> PrepareStandForTestingAsync()
         {
@@ -984,7 +1039,11 @@ namespace RTL.ViewModels
                     if (!await RunDutSelfTestAsync(cancellationToken))
                     {
                         _logger.LogToUser("Тестирование DUT завершилось с ошибкой.", LogLevel.Error);
-                        _reportGenerator.PrependToReport($"test_result=false=0");
+                        _reportGenerator.PrependToReport($"session=true=session_id - ID сессии");
+                        _reportGenerator.PrependToReport($"stand_id=true=серийный номер стенда");
+                        _reportGenerator.PrependToReport($"serial_num=true=серийный номер платы (полученный от сервера)");
+                        _reportGenerator.PrependToReport($"test_result=false=0"); //если весь тест успешный
+                        _reportGenerator.PrependToReport($"test_type=true=0");
                         await StopHard();
                         return false;
                     }
@@ -1004,8 +1063,29 @@ namespace RTL.ViewModels
                 _reportGenerator.PrependToReport($"test_result=true=1"); //если весь тест успешный
                 _reportGenerator.PrependToReport($"test_type=true=0");
 
+                // отправка отчета на сервер
+                ServerTestResult = new TestResult
+                {
+                    deviceType = DeviceType.Unknown,
+                    standName = Environment.MachineName,
+                    isSuccess = false,
+                    deviceIdent = "4e544b4d433030101210112", //серийник платы
+                    isFull = false
+                };
+                ServerTestResult.AddSubTest("hello", true, "trial");
+                ServerTestResult.isFull = true;
+                DeviceInfo di = Service.SendTestResult(ServerTestResult, SessionId);
+                if (di == null)
+                {
 
+                    di = Service.SendTestResult(ServerTestResult, SessionId);
+                    if (di == null)
+                    {
 
+                        throw new Exception("Ошибка передачи результатов тестирования на сервер !!!");
+                    }
+                }
+                ServerTestResult.deviceSerial = di.serialNumber;
 
 
                 await StopHard();
@@ -1690,13 +1770,174 @@ namespace RTL.ViewModels
                     return false;
                 }
             }
+
+
+
             else
             {
                 _logger.LogToUser("Тест POE пропущен (отключен в конфигурации).", LogLevel.Info);
             }
             PoeStatus = 2;
+
+            // 2.15 Получение серийного номера
+            if (!await RunSerialNumberTestAsync(cancellationToken))
+            {
+                RtlStatus = 3;
+                _logger.LogToUser("Ошибка получения серийного номера.", LogLevel.Error);
+                await StopHard();
+                return false;
+            }
+
+            ProgressValue += 5;
+
             return true;
         }
+
+        private async Task<bool> RunSerialNumberTestAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogToUser("📡 Получение уникального идентификатора платы (DEVICE_ID)...", LogLevel.Info);
+
+                // Запрос DEVICE_ID
+                string deviceIdResponse = await SendConsoleCommandAsync("ubus call tf_hwsys getParam '{\"name\":\"DEVICE_ID\"}'");
+
+                // Парсим DEVICE_ID
+                string deviceId = ParseDeviceId(deviceIdResponse);
+                if (string.IsNullOrEmpty(deviceId))
+                {
+                    _logger.LogToUser("⚠️ Не удалось получить DEVICE_ID. Будем запрашивать серийник без него.", LogLevel.Warning);
+                }
+                else
+                {
+                    _logger.LogToUser($"✅ Уникальный идентификатор платы: {deviceId}", LogLevel.Success);
+                }
+
+                // Получаем серийник с сервера
+                /*string serialNumber = await GetSerialNumberFromServer(deviceId);
+                if (string.IsNullOrEmpty(serialNumber))
+                {
+                    _logger.LogToUser("❌ Серийный номер не получен!", LogLevel.Error);
+                    _reportGenerator.AppendToReport($"SerialNumber=false=Ошибка получения серийника");
+                    return false;
+                }
+
+                _logger.LogToUser($"✅ Серийный номер платы: {serialNumber}", LogLevel.Success);
+                _reportGenerator.AppendToReport($"SerialNumber=true={serialNumber}");
+                */
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"❌ Ошибка во время запроса серийного номера: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"SerialNumber=false={ex.Message}");
+                return false;
+            }
+        }
+
+        private string ParseDeviceId(string response)
+        {
+            try
+            {
+                // Обрезаем первые 52 символа
+                if (response.Length > 52)
+                {
+                    response = response.Substring(52);
+                }
+                else
+                {
+                    throw new Exception("Ответ слишком короткий для удаления фиксированного количества символов.");
+                }
+
+                // Обрезаем возможные лишние символы в конце
+                if (response.Length > 20)
+                {
+                    response = response.Substring(0, response.Length - 19);
+                }
+                else
+                {
+                    throw new Exception("Ответ слишком короткий для удаления 20 символов в конце.");
+                }
+
+                // Добавляем закрывающую фигурную скобку в конце, если ее нет
+                if (!response.EndsWith("}"))
+                {
+                    response += "}";
+                }
+
+                response = response.Trim();
+
+                _logger.Log($"Ответ после очистки: {response}", LogLevel.Debug);
+
+                var jsonObject = Newtonsoft.Json.Linq.JObject.Parse(response);
+                string deviceId = jsonObject.SelectToken("DEVICE_ID")?.ToString();
+
+                if (string.IsNullOrEmpty(deviceId))
+                {
+                    throw new Exception("Поле DEVICE_ID отсутствует в JSON-ответе.");
+                }
+
+                return deviceId;
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка парсинга DEVICE_ID: {ex.Message}", LogLevel.Error);
+                _logger.Log($"Сырой ответ: {response}", LogLevel.Error);
+                return null;
+            }
+        }
+
+
+
+
+        private async Task<string> GetSerialNumberFromServer(string deviceId)
+        {
+            try
+            {
+                string sessionId = SessionId; // sessionId получен ранее при авторизации
+                string devType = "RTL-SW"; // Тип устройства из профиля
+
+                if (string.IsNullOrEmpty(sessionId))
+                {
+                    _logger.LogToUser("❌ Ошибка: нет sessionId, запрос невозможен!", LogLevel.Error);
+                    return null;
+                }
+
+                // Формируем URL запроса
+                string url = $"http://iccid.fort-telecom.ru/api/Api.svc/getSerialNum?devType={devType}";
+                if (!string.IsNullOrEmpty(deviceId))
+                {
+                    url += $"&cpuId={deviceId}";
+                }
+
+                using (HttpClient client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Add("User-Agent", "ftstand");
+                    client.DefaultRequestHeaders.Add("Cookie", $"SGUID=session_id={sessionId}&login=");
+
+                    HttpResponseMessage response = await client.GetAsync(url);
+                    string responseContent = await response.Content.ReadAsStringAsync();
+
+                    _logger.Log($"📥 Ответ сервера (серийник): {responseContent}", LogLevel.Debug);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogToUser($"⚠️ Ошибка получения серийного номера. Код: {response.StatusCode}", LogLevel.Warning);
+                        return null;
+                    }
+
+                    // Серийник должен быть просто строкой в ответе
+                    return responseContent.Trim('"');
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка запроса серийного номера: {ex.Message}", LogLevel.Error);
+                return null;
+            }
+        }
+
+
 
 
         #region Самотестирование
@@ -2196,9 +2437,20 @@ namespace RTL.ViewModels
 
 
         #endregion тестирование
+
+
+
+
+
+
+        //public string SessionId = "4a03d914-45eb-41b6-9706-baae473be925"; //id сессии, без него не отправишь рез-ты
+       
         public RtlSwViewModel(Loggers logger, ReportService report)
         {
+           
 
+
+            
 
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));

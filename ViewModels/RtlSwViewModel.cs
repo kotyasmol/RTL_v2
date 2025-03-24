@@ -933,6 +933,17 @@ namespace RTL.ViewModels
         {
             try
             {
+                // иф на необходимость отправки на сервер
+
+                ServerTestResult = new TestResult
+                {
+                    deviceType = DeviceType.RTL_SW,
+                    standName = Environment.MachineName,
+                    //isSuccess = false,
+                    //deviceIdent = "4e544b4d433030101210112", //серийник платы
+                    //isFull = false
+                };
+
                 IsTestRunning = true;
                 ProgressValue += 5;
                 K5TestStatus = 1;
@@ -1063,15 +1074,17 @@ namespace RTL.ViewModels
                 _reportGenerator.PrependToReport($"test_result=true=1"); //если весь тест успешный
                 _reportGenerator.PrependToReport($"test_type=true=0");
 
+
+
+
+
+
+
+
+
+
                 // отправка отчета на сервер
-                ServerTestResult = new TestResult
-                {
-                    deviceType = DeviceType.Unknown,
-                    standName = Environment.MachineName,
-                    isSuccess = false,
-                    deviceIdent = "4e544b4d433030101210112", //серийник платы
-                    isFull = false
-                };
+
                 ServerTestResult.AddSubTest("hello", true, "trial");
                 ServerTestResult.isFull = true;
                 DeviceInfo di = Service.SendTestResult(ServerTestResult, SessionId);
@@ -1087,7 +1100,7 @@ namespace RTL.ViewModels
                 }
                 ServerTestResult.deviceSerial = di.serialNumber;
 
-
+                ServerTestResult.isSuccess = false;
                 await StopHard();
                 return true;
             }
@@ -2682,9 +2695,10 @@ namespace RTL.ViewModels
             await Task.Delay(500); // Даем время на обработку
             IsTestRunning = false;
 
+
             // Отключаем питание платы
 
-
+           
             _logger.LogToUser("Питание снято. Плату можно безопасно извлечь из стенда.", Loggers.LogLevel.Info);
         }
 

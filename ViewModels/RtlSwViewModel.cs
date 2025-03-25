@@ -312,8 +312,7 @@ namespace RTL.ViewModels
 
         public async Task<bool> WaitForDUTReadyAsync(CancellationToken cancellationToken, bool wasFlashed = false, int noLogTimeoutSeconds = 100, int maxWaitTimeSeconds = 1200)
         {
-            await WriteToRegisterWithRetryAsync(2301, 0);
-            await WriteToRegisterWithRetryAsync(2301, 1);
+            //await WriteToRegisterWithRetryAsync(2301, 1);
             await Task.Delay(2000, cancellationToken);
 
             try
@@ -344,7 +343,7 @@ namespace RTL.ViewModels
                     if (_serialPortDut.BytesToRead > 0)
                     {
                         string data = _serialPortDut.ReadExisting();
-                        _logger.Log($"Получены данные: {data.Trim()}", LogLevel.Debug);
+                        _logger.LogToUser($"Получены данные: {data.Trim()}", LogLevel.Debug);
                         lastLogTime = DateTime.Now;
 
                         if (data.Contains("root@TFortis:/#"))
@@ -854,6 +853,16 @@ namespace RTL.ViewModels
         {
             try
             {
+                ServerTestResult = new TestResult
+                {
+                    deviceType = DeviceType.RTL_SW,
+                    standName = Environment.MachineName,
+                    //isSuccess = false,
+                    //deviceIdent = "4e544b4d433030101210112", //серийник платы
+                    //isFull = false
+                };
+
+
                 isSwTestFull = false;
                 isSwTestSuccess = false;
 
@@ -939,17 +948,7 @@ namespace RTL.ViewModels
             try
             {
                 // иф на необходимость отправки на сервер
-                if (TestConfig.IsReportGenerationEnabled)
-                {
-                    ServerTestResult = new TestResult
-                    {
-                        deviceType = DeviceType.RTL_SW,
-                        standName = Environment.MachineName,
-                        //isSuccess = false,
-                        //deviceIdent = "4e544b4d433030101210112", //серийник платы
-                        //isFull = false
-                    };
-                }
+
 
 
 
@@ -1052,7 +1051,7 @@ namespace RTL.ViewModels
                     return false;
                 }
                 FlashStatus = 2;
-                await WriteToRegisterWithRetryAsync(2307, 0); //------------------------------------------выключаем ресет после двух прошивок 
+                await WriteToRegisterWithRetryAsync(2307, 0); //------------------------------------------выключаем ресет
                 await Task.Delay(2000);
 
                 ProgressValue += 5;
@@ -1069,7 +1068,6 @@ namespace RTL.ViewModels
                 }
 
 
-
                 ProgressValue += 5;
                 // DUT
                 if (IsDutSelfTestEnabled)
@@ -1078,11 +1076,6 @@ namespace RTL.ViewModels
                     if (!await RunDutSelfTestAsync(cancellationToken))
                     {
                         _logger.LogToUser("Тестирование DUT завершилось с ошибкой.", LogLevel.Error);
-                        _reportGenerator.PrependToReport($"session=true=session_id - ID сессии");
-                        _reportGenerator.PrependToReport($"stand_id=true=серийный номер стенда");
-                        _reportGenerator.PrependToReport($"serial_num=true=серийный номер платы (полученный от сервера)");
-                        _reportGenerator.PrependToReport($"test_result=false=0"); //если весь тест успешный
-                        _reportGenerator.PrependToReport($"test_type=true=0");
                         await StopHard();
                         return false;
                     }
@@ -1094,44 +1087,11 @@ namespace RTL.ViewModels
                 ProgressValue += 5;
                 RtlStatus = 2;
 
-
-                //снизу вверх 
-                _reportGenerator.PrependToReport($"session=true=session_id - ID сессии");
-                _reportGenerator.PrependToReport($"stand_id=true=серийный номер стенда");
-                _reportGenerator.PrependToReport($"serial_num=true=серийный номер платы (полученный от сервера)");
-                _reportGenerator.PrependToReport($"test_result=true=1"); //если весь тест успешный
-                _reportGenerator.PrependToReport($"test_type=true=0");
-
-
-
-                
-
-
-
                 ServerTestResult.isFull = true; // доработать чтобы обрабатывал именно по профилю распознавал все ли штуки в подтесте
                 isSwTestSuccess = true;
                 await LoadSwReport();
                 await StopHard();
-                // отправка отчета на сервер
-
-                //ServerTestResult.AddSubTest("hello", true, "trial");
-
-                /*ServerTestResult.isFull = true;
-                DeviceInfo di = Service.SendTestResult(ServerTestResult, SessionId, true);
-                if (di == null)
-                {
-
-                    di = Service.SendTestResult(ServerTestResult, SessionId, true);
-                    if (di == null)
-                    {
-
-                        throw new Exception("Ошибка передачи результатов тестирования на сервер !!!");
-                    }
-                }
-                ServerTestResult.deviceSerial = di.serialNumber;
-
-                ServerTestResult.isSuccess = false;
-                await StopHard();*/
+               
                 return true;
             }
             catch (Exception ex)
@@ -2104,8 +2064,6 @@ namespace RTL.ViewModels
         }
 
         #endregion SENSOR 1 + 2
-
-
         #region RELAY
         private async Task<bool> RunRelayTestAsync(ushort relayStatusRegister, CancellationToken cancellationToken)
         {
@@ -2333,6 +2291,7 @@ namespace RTL.ViewModels
                     {
                         _logger.Log($"Ошибка: RS485 имеет состояние {rs485Status}, ожидалось {expectedStatus}.", LogLevel.Error);
                         _reportGenerator.AppendToReport($"RS485=false=RS485 имеет состояние {rs485Status}, ожидалось {expectedStatus}.");
+                        ServerTestResult.AddSubTest($"RS485", false, $"S485 имеет состояние {rs485Status}, ожидалось {expectedStatus}.");
                         return false;
                     }
                 }
@@ -2351,12 +2310,14 @@ namespace RTL.ViewModels
 
                 _logger.LogToUser("Тестирование RS485 успешно завершено.", LogLevel.Success);
                 _reportGenerator.AppendToReport($"RS485=true=1");
+                ServerTestResult.AddSubTest($"RS485", true, $"1");
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования RS485: {ex.Message}", LogLevel.Error);
                 _reportGenerator.AppendToReport($"RS485=false={ex.Message}");
+                ServerTestResult.AddSubTest($"RS485", false, $"{ex.Message}");
                 return false;
             }
         }
@@ -2377,6 +2338,8 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Ошибка: I2C не подключён.", LogLevel.Error);
                     _reportGenerator.AppendToReport($"I2C=false=I2C не подключен");
+                    ServerTestResult.AddSubTest($"I2C", false, $"I2C не подключен");
+
                     return false;
                 }
 
@@ -2392,12 +2355,14 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Ошибка: Не удалось извлечь температуру из ответа.", LogLevel.Error);
                     _reportGenerator.AppendToReport($"I2C=false=Не удалось извлечь температуру из ответа");
+                    ServerTestResult.AddSubTest($"I2C", false, $"Не удалось извлечь температуру из ответа");
                     return false;
                 }
 
                 _logger.LogToUser($"Температура I2C: {temperature} °C.", LogLevel.Info);
                 _logger.LogToUser("Тестирование I2C успешно завершено.", LogLevel.Success);
                 _reportGenerator.AppendToReport($"I2C=true=1");
+                ServerTestResult.AddSubTest($"I2C", true, $"1");
 
                 return true;
             }
@@ -2405,6 +2370,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser($"Ошибка во время тестирования I2C: {ex.Message}", LogLevel.Error);
                 _reportGenerator.AppendToReport($"I2C=false={ex.Message}");
+                ServerTestResult.AddSubTest($"I2C", false, $"{ex.Message}");
                 return false;
             }
         }
@@ -2545,11 +2511,6 @@ namespace RTL.ViewModels
 
         public RtlSwViewModel(Loggers logger, ReportService report)
         {
-
-
-
-
-
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _logger.Log("RtlSwViewModel инициализирован", Loggers.LogLevel.Success);

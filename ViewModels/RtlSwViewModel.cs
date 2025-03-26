@@ -29,6 +29,7 @@ using System.Text;
 using Microsoft.WindowsAPICodePack.Sensors;
 using FTServiceUtils;
 using Newtonsoft.Json.Linq;
+using RTL.Services;
 namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
@@ -1068,6 +1069,12 @@ namespace RTL.ViewModels
                 }
 
 
+                await WriteToRegisterWithRetryAsync(2301, 0);
+                await WriteToRegisterWithRetryAsync(2302, 0);
+                await Task.Delay(10000);
+                await WriteToRegisterWithRetryAsync(2301, 1);
+                await WriteToRegisterWithRetryAsync(2302, 1);
+                await Task.Delay(2000);
                 ProgressValue += 5;
                 // DUT
                 if (IsDutSelfTestEnabled)
@@ -1646,7 +1653,7 @@ namespace RTL.ViewModels
             }
             ProgressValue += 5;
             // Ожидание загрузки DUT после прошивки
-            if (!await WaitForDUTReadyAsync(cancellationToken, false, 30, 180))
+            /* if (!await WaitForDUTReadyAsync(cancellationToken, false, 30, 180))
             {
                 RtlStatus = 3;
                 ConsoleStatus = 3;
@@ -1654,7 +1661,33 @@ namespace RTL.ViewModels
                 await StopHard();
                 await LoadSwReport();
                 return false;
+            }*/
+
+
+            if (!await WaitForDUTReadyAsync(cancellationToken, false, 30, 180))
+            {
+                RtlStatus = 3;
+                ConsoleStatus = 3;
+                _logger.LogToUser("DUT не готов после прошивки.", LogLevel.Error);
+
+                // Длинная задержка (например, 10 минут) перед отключением питания
+                int debugPauseSeconds = 600;
+                _logger.LogToUser($"DUT не загрузился. Включена пауза {debugPauseSeconds} секунд для диагностики.", LogLevel.Warning);
+                try
+                {
+                    await Task.Delay(debugPauseSeconds * 1000, cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    _logger.LogToUser("Ожидание диагностики прервано.", LogLevel.Info);
+                }
+
+                await StopHard();
+                await LoadSwReport();
+                return false;
             }
+
+
             ConsoleStatus = 2;
             ProgressValue += 5;
             // Самотестирование
@@ -1829,7 +1862,7 @@ namespace RTL.ViewModels
 
             return true;
         }
-
+        #region серийник
         private async Task<bool> RunSerialNumberTestAsync(CancellationToken cancellationToken)
         {
             try
@@ -1930,7 +1963,7 @@ namespace RTL.ViewModels
             }
         }
 
-
+        #endregion серийник
 
 
         private async Task<string> GetSerialNumberFromServer(string deviceId)
@@ -2427,6 +2460,7 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Ошибка: Команда 'ubus call poe info' не вернула ответ.", LogLevel.Error);
                     _reportGenerator.AppendToReport($"poe=false=Команда 'ubus call poe info' не вернула ответ");
+                    ServerTestResult.AddSubTest($"poe", false, $"Команда 'ubus call poe info' не вернула ответ");
 
                     return false;
                 }
@@ -2437,17 +2471,20 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Тестирование PoE успешно завершено.", LogLevel.Success);
                     _reportGenerator.AppendToReport($"poe=true=1");
+                    ServerTestResult.AddSubTest($"poe", true, $"1");
                     return true;
                 }
 
                 _logger.Log("Ошибка: В ответе отсутствует ключ 'budget'.", LogLevel.Error);
                 _reportGenerator.AppendToReport($"poe=false=В ответе отсутствует ключ 'budget'");
+                ServerTestResult.AddSubTest($"poe", false, $"В ответе отсутствует ключ 'budget'");
                 return false;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования PoE: {ex.Message}", LogLevel.Error);
                 _reportGenerator.AppendToReport($"poe=false={ex.Message}");
+                ServerTestResult.AddSubTest($"poe", false, $"{ex.Message}");
                 return false;
             }
         }
@@ -2505,12 +2542,30 @@ namespace RTL.ViewModels
 
 
 
-
-
-        //public string SessionId = "4a03d914-45eb-41b6-9706-baae473be925"; //id сессии, без него не отправишь рез-ты
+        private async Task PrintLabelAsync()
+        {
+            string labelText = "1488";
+            bool result = _printerService.PrintLabel(labelText);
+            if (result)
+            {
+                _logger.LogToUser("✅ Печать успешна!", LogLevel.Success);
+            }
+            else
+            {
+                _logger.LogToUser("❌ Ошибка печати!", LogLevel.Error);
+            }
+        }
+        private readonly TscPrinterService _printerService;
+        public ICommand PrintLabelCommand { get; }
 
         public RtlSwViewModel(Loggers logger, ReportService report)
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            // Выполняем печать при старте
+            _printerService = new TscPrinterService("TSC TE310");
+            PrintLabelCommand = new RelayCommand(async () => await PrintLabelAsync());
+            _ = Task.Run(async () => await PrintLabelAsync());
+
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _logger.Log("RtlSwViewModel инициализирован", Loggers.LogLevel.Success);

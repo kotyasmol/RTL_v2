@@ -1091,8 +1091,23 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Тестирование DUT отключено, пропускаем.", LogLevel.Info);
                 }
+
+
+                // Печать этикетки
+                if (!await PrintLabelAsync())
+                {
+                    _logger.LogToUser("Ошибка печати этикетки.", LogLevel.Error);
+                    await StopHard();
+                    await LoadSwReport();
+                    return false;
+                }
+
+
                 ProgressValue += 5;
                 RtlStatus = 2;
+
+
+
 
                 ServerTestResult.isFull = true; // доработать чтобы обрабатывал именно по профилю распознавал все ли штуки в подтесте
                 isSwTestSuccess = true;
@@ -1839,9 +1854,6 @@ namespace RTL.ViewModels
                     return false;
                 }
             }
-
-
-
             else
             {
                 _logger.LogToUser("Тест POE пропущен (отключен в конфигурации).", LogLevel.Info);
@@ -1858,16 +1870,76 @@ namespace RTL.ViewModels
                 return false;
             }
 
+
             ProgressValue += 5;
 
             return true;
         }
+
+
+        public TscPrinterService _printerService;
+
+
+        private async Task<bool> PrintLabelAsync()
+        {
+            try
+            {
+                // Проверка на включение печати в конфигурации
+                if (!TestConfig.IsLabelPrintingEnabled)
+                {
+                    _logger.LogToUser("⚠️ Печать отключена в профиле.", LogLevel.Warning);
+                    return false;  // Если печать отключена, возвращаем false и не пытаемся печатать
+                }
+
+                //ServerTestResult.deviceSerial = "31300002";
+
+                // Инициализация принтера, если не был инициализирован
+
+
+                // Получаем серийный номер для печати
+                string serialNumber = ServerTestResult.deviceSerial;
+                if (string.IsNullOrEmpty(serialNumber))
+                {
+                    _logger.LogToUser("❌ Серийный номер не доступен для печати.", LogLevel.Error);
+                    return false;  // Если серийный номер не получен, не печатаем
+                }
+
+                string barcode = serialNumber; // Используем тот же серийный номер для штрихкода
+
+                _logger.LogToUser($"🖨️ Отправка на печать: Barcode={barcode}, Serial={serialNumber}", LogLevel.Debug);
+
+                // Печать этикетки
+                bool result = _printerService.PrintLabel(barcode, serialNumber);
+
+                if (result)
+                {
+                    _logger.LogToUser("✅ Печать успешна!", LogLevel.Success);
+                    return true;  // Возвращаем true, если печать прошла успешно
+                }
+                else
+                {
+                    _logger.LogToUser("❌ Ошибка печати! Принтер не ответил или завершил процесс с ошибкой.", LogLevel.Error);
+                    return false;  // Возвращаем false, если произошла ошибка
+                }
+            }
+            catch (Exception ex)
+            {
+                // Логируем исключение, если оно возникло
+                _logger.LogToUser($"❌ Ошибка при печати: {ex.Message}", LogLevel.Error);
+                _logger.LogToUser($"🔍 StackTrace: {ex.StackTrace}", LogLevel.Debug);
+
+                return false;  // Возвращаем false, если ошибка при вызове печати
+            }
+        }
+
+
+
+
         #region серийник
         private async Task<bool> RunSerialNumberTestAsync(CancellationToken cancellationToken)
         {
             try
             {
-
                 _logger.LogToUser("📡 Получение уникального идентификатора платы (DEVICE_ID)...", LogLevel.Info);
 
                 // Запрос DEVICE_ID
@@ -1878,17 +1950,16 @@ namespace RTL.ViewModels
                 if (string.IsNullOrEmpty(deviceId))
                 {
                     _logger.LogToUser("⚠️ Не удалось получить DEVICE_ID. Будем запрашивать серийник без него.", LogLevel.Warning);
-                    deviceId = "4e544b4d433030101210112";
-                    _logger.LogToUser($"ЗАХАРДКОЖЕННЫЙ АЙДИ ПЛАТЫ: {deviceId}", LogLevel.Success);
+                    //return false; // Если deviceId не удалось получить, не продолжаем тестирование
                 }
                 else
                 {
                     _logger.LogToUser($"✅ Уникальный идентификатор платы: {deviceId}", LogLevel.Success);
                     ServerTestResult.deviceIdent = deviceId;
                 }
-                
+
                 // Получаем серийник с сервера
-                /*string serialNumber = await GetSerialNumberFromServer(deviceId);
+                string serialNumber = await GetSerialNumberFromServer(deviceId);
                 if (string.IsNullOrEmpty(serialNumber))
                 {
                     _logger.LogToUser("❌ Серийный номер не получен!", LogLevel.Error);
@@ -1898,18 +1969,21 @@ namespace RTL.ViewModels
 
                 _logger.LogToUser($"✅ Серийный номер платы: {serialNumber}", LogLevel.Success);
                 _reportGenerator.AppendToReport($"SerialNumber=true={serialNumber}");
-                */
+
+                // Переопределим ServerTestResult для использования полученного серийного номера
+                ServerTestResult.deviceSerial = serialNumber;
+
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"❌ Ошибка во время запроса серийного номера: {ex.Message}", LogLevel.Error);
-                _reportGenerator.AppendToReport($"SerialNumber=false={ex.Message}");
                 ServerTestResult.AddSubTest($"SerialNumber", false, $"{ex.Message}");
 
                 return false;
             }
         }
+
 
         private string ParseDeviceId(string response)
         {
@@ -2012,6 +2086,7 @@ namespace RTL.ViewModels
                 return null;
             }
         }
+
 
 
 
@@ -2542,36 +2617,17 @@ namespace RTL.ViewModels
 
 
 
-        private async Task PrintLabelAsync()
-        {
-            string barcode = "31300002";  // Первая строка (штрихкод)
-            string serialNumber = "31300002";    // Вторая строка (текст)
-
-            bool result = _printerService.PrintLabel(barcode, serialNumber);
-
-            if (result)
-            {
-                _logger.LogToUser("✅ Печать успешна!", LogLevel.Success);
-            }
-            else
-            {
-                _logger.LogToUser("❌ Ошибка печати!", LogLevel.Error);
-            }
-        }
 
 
-
-        private readonly TscPrinterService _printerService;
-        public ICommand PrintLabelCommand { get; }
 
         public RtlSwViewModel(Loggers logger, ReportService report)
         {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            // Выполняем печать при старте
-            _printerService = new TscPrinterService("TSC TE310");
-            PrintLabelCommand = new RelayCommand(async () => await PrintLabelAsync());
-            _ = Task.Run(async () => await PrintLabelAsync());
 
+
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            _printerService = new TscPrinterService("TSC TE310");
+            
+            
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _logger.Log("RtlSwViewModel инициализирован", Loggers.LogLevel.Success);
@@ -2830,8 +2886,8 @@ namespace RTL.ViewModels
 
                 ServerTestResult.isSuccess = isSwTestSuccess;
                 ServerTestResult.isFull = isSwTestFull;
-                ServerTestResult.deviceIdent = "4e544b4d433030101210112";
-
+                //ServerTestResult.deviceIdent = "4e544b4d433030101210112";
+                //ServerTestResult.deviceSerial = "3130000002";                    
 
 
                 DeviceInfo di = Service.SendTestResult(ServerTestResult, SessionId, true);
@@ -2906,16 +2962,6 @@ namespace RTL.ViewModels
         }
 
         #endregion отключения
-
-
-        #region камера балуюс
-
-
-
-
-        #endregion камера балуюс
-
-
 
     }
 }

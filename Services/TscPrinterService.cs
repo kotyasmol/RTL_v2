@@ -39,7 +39,7 @@ namespace RTL.Services
 
                 // Добавляем штрихкод (первая строка)
                 ZebraBlock barcodeBlock = label.addBlock(0, 0, 0, 0, -5);  //координаты 
-                barcodeBlock.addBarCodeType(barcode, 2, 8, BarCodeType.Code128);
+                barcodeBlock.addBarCodeType(barcode, 4, 8, BarCodeType.Code128);
 
                 // Добавляем текст для серийного номера (вторая строка)
                 ZebraBlock textBlock = label.addBlock(0, 0, 0, 0,4);  // координаты

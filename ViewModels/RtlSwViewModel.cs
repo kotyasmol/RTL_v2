@@ -2544,8 +2544,11 @@ namespace RTL.ViewModels
 
         private async Task PrintLabelAsync()
         {
-            string labelText = "1488";
-            bool result = _printerService.PrintLabel(labelText);
+            string barcode = "31300002";  // Первая строка (штрихкод)
+            string serialNumber = "31300002";    // Вторая строка (текст)
+
+            bool result = _printerService.PrintLabel(barcode, serialNumber);
+
             if (result)
             {
                 _logger.LogToUser("✅ Печать успешна!", LogLevel.Success);
@@ -2555,6 +2558,9 @@ namespace RTL.ViewModels
                 _logger.LogToUser("❌ Ошибка печати!", LogLevel.Error);
             }
         }
+
+
+
         private readonly TscPrinterService _printerService;
         public ICommand PrintLabelCommand { get; }
 

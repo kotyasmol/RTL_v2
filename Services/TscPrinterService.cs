@@ -8,6 +8,7 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using FTServiceUtils;
+using FTServiceUtils.Enums;
 
 namespace RTL.Services
 {
@@ -20,43 +21,36 @@ namespace RTL.Services
             _printerName = printerName;
         }
 
-        public bool PrintLabel(string text)
+
+
+        public bool PrintLabel(string barcode, string serialNumber)
         {
             try
             {
-                string line1 = "";
-                string line2 = "";
-
-                if (text.Contains("\\n"))
+                // Убедись, что данные передаются корректно
+                if (string.IsNullOrEmpty(barcode) || string.IsNullOrEmpty(serialNumber))
                 {
-                    var lines = text.Split("\\n");
-                    if (lines.Length == 2)
-                    {
-                        line1 = lines[0];
-                        line2 = lines[1];
-                    }
+                    Console.WriteLine("Ошибка: штрихкод или серийный номер пустые.");
+                    return false;
                 }
 
-                if (string.IsNullOrEmpty(line1))
-                {
-                    if (text.Length > 14)
-                    {
-                        line1 = text.Substring(0, 14);
-                        line2 = text.Substring(14);
-                    }
-                    else
-                        line1 = text;
-                }
+                // Создаём ZPL-этикетку 50x30 мм
+                ZebraLabel label = new ZebraLabel(30, 10);
 
-                // Используем объект ZebraLabel
-                ZebraLabel label = new ZebraLabel(25, 12);
-                ZebraBlock zb0 = label.addBlock(25, 12, 0);
-                zb0.addASCIItext($"{line1}", 3, 0.4);
-                if (!string.IsNullOrEmpty(line2))
-                    zb0.addASCIItext($"{line2}", 3, 0.4);
+                // Добавляем штрихкод (первая строка)
+                ZebraBlock barcodeBlock = label.addBlock(0, 0, 0, 0, -5);  //координаты 
+                barcodeBlock.addBarCodeType(barcode, 2, 8, BarCodeType.Code128);
+
+                // Добавляем текст для серийного номера (вторая строка)
+                ZebraBlock textBlock = label.addBlock(0, 0, 0, 0,4);  // координаты
+                textBlock.addASCIItext($"{serialNumber}", 3, 1);
+
+
+
 
                 // Отправляем на печать
                 label.PrintLabel(_printerName);
+
                 return true;
             }
             catch (Exception ex)
@@ -65,56 +59,31 @@ namespace RTL.Services
                 return false;
             }
         }
-    }
-}
-/*using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System;
-using System.Drawing;
-using System.Drawing.Printing;
-using System.IO;
-using FTServiceUtils;
 
-namespace RTL.Services
-{
-    public class TscPrinterService
-    {
-        private readonly string _printerName;
 
-        public TscPrinterService(string printerName)
-        {
-            _printerName = printerName;
-        }
 
-        public bool PrintLabel(string text, string serialNumber, string imei)
-        {
-            try
-            {
-                string command = GenerateTscCommand(text, serialNumber, imei);
-                return RawPrinterHelper.Print(_printerName, command);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка печати: {ex.Message}");
-                return false;
-            }
-        }
 
-        private string GenerateTscCommand(string text, string serialNumber, string imei)
+
+
+        private string GenerateTscCommand(string serialNumber, string imei)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("SIZE 50 mm, 30 mm");
-            sb.AppendLine("GAP 2 mm, 0 mm");
-            sb.AppendLine("DIRECTION 1");
-            sb.AppendLine("CLS");
-            sb.AppendLine($"TEXT 100,100,\"3\",0,1,1,\"{text}\"");
-            sb.AppendLine($"TEXT 100,150,\"3\",0,1,1,\"Serial: {serialNumber}\"");
-            sb.AppendLine($"TEXT 100,200,\"3\",0,1,1,\"IMEI: {imei}\"");
-            sb.AppendLine("PRINT 1");
+            sb.AppendLine("SIZE 50 mm, 30 mm");  // Размер этикетки
+            sb.AppendLine("GAP 2 mm, 0 mm");    // Зазор между этикетками
+            sb.AppendLine("DIRECTION 1");       // Направление печати
+            sb.AppendLine("CLS");               // Очистка буфера
+
+            // Добавляем текст
+
+            sb.AppendLine($"TEXT 100,100,\"3\",0,1,1,\"Serial: {serialNumber}\"");
+
+            // Добавляем штрихкод
+            sb.AppendLine($"BARCODE 100,200,\"128\",60,1,0,2,2,\"{serialNumber}\"");
+
+            sb.AppendLine("PRINT 1");  // Отправляем команду на печать
+
             return sb.ToString();
         }
+
     }
-}*/
+}

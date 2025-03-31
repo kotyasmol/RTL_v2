@@ -1119,6 +1119,7 @@ namespace RTL.ViewModels
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования: {ex.Message}", LogLevel.Error);
+                await LoadSwReport();
                 await StopHard();
                 return false;
             }

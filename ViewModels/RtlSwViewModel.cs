@@ -846,22 +846,13 @@ namespace RTL.ViewModels
 
         #endregion мониторинг
         #region тестирование
-
         private bool _isCancellationRequested;
-        public static TestResult ServerTestResult; // КЛАСС ДЛЯ ОТПРАВКИ ОТЧЕТОВ 
+
 
         private async Task<bool> PrepareStandForTestingAsync()
         {
             try
             {
-                ServerTestResult = new TestResult
-                {
-                    deviceType = DeviceType.RTL_SW,
-                    standName = Environment.MachineName,
-                    //isSuccess = false,
-                    //deviceIdent = "4e544b4d433030101210112", //серийник платы
-                    //isFull = false
-                };
 
 
                 isSwTestFull = false;
@@ -949,8 +940,6 @@ namespace RTL.ViewModels
             try
             {
                 // иф на необходимость отправки на сервер
-
-
 
 
 
@@ -1093,14 +1082,8 @@ namespace RTL.ViewModels
                 }
 
 
-                // Печать этикетки
-                if (!await PrintLabelAsync())
-                {
-                    _logger.LogToUser("Ошибка печати этикетки.", LogLevel.Error);
-                    await StopHard();
-                    await LoadSwReport();
-                    return false;
-                }
+
+
 
 
                 ProgressValue += 5;
@@ -1112,6 +1095,15 @@ namespace RTL.ViewModels
                 ServerTestResult.isFull = true; // доработать чтобы обрабатывал именно по профилю распознавал все ли штуки в подтесте
                 isSwTestSuccess = true;
                 await LoadSwReport();
+
+                // Печать этикетки
+                if (!await PrintLabelAsync())
+                {
+                    _logger.LogToUser("Ошибка печати этикетки.", LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+
                 await StopHard();
                
                 return true;
@@ -1119,8 +1111,9 @@ namespace RTL.ViewModels
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования: {ex.Message}", LogLevel.Error);
-                await LoadSwReport();
                 await StopHard();
+                await LoadSwReport();
+                
                 return false;
             }
             finally
@@ -1889,49 +1882,74 @@ namespace RTL.ViewModels
                 if (!TestConfig.IsLabelPrintingEnabled)
                 {
                     _logger.LogToUser("⚠️ Печать отключена в профиле.", LogLevel.Warning);
-                    return false;  // Если печать отключена, возвращаем false и не пытаемся печатать
+                    return false;
                 }
 
-                //ServerTestResult.deviceSerial = "31300002";
-
-                // Инициализация принтера, если не был инициализирован
-
-
-                // Получаем серийный номер для печати
+                // Проверяем, доступен ли серийный номер
                 string serialNumber = ServerTestResult.deviceSerial;
+                
                 if (string.IsNullOrEmpty(serialNumber))
                 {
                     _logger.LogToUser("❌ Серийный номер не доступен для печати.", LogLevel.Error);
-                    return false;  // Если серийный номер не получен, не печатаем
+                    return false;
                 }
 
                 string barcode = serialNumber; // Используем тот же серийный номер для штрихкода
-
                 _logger.LogToUser($"🖨️ Отправка на печать: Barcode={barcode}, Serial={serialNumber}", LogLevel.Debug);
 
-                // Печать этикетки
-                bool result = _printerService.PrintLabel(barcode, serialNumber);
-
-                if (result)
+                // Проверяем, инициализирован ли принтер
+                if (_printerService == null)
                 {
-                    _logger.LogToUser("✅ Печать успешна!", LogLevel.Success);
-                    return true;  // Возвращаем true, если печать прошла успешно
+                    _logger.LogToUser("❌ Принтер не инициализирован. Попытка повторной инициализации...", LogLevel.Error);
+                    try
+                    {
+                        _printerService = new TscPrinterService("TSC TE310");
+                        _logger.LogToUser("✅ Принтер инициализирован.", LogLevel.Debug);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogToUser($"❌ Ошибка при инициализации принтера: {ex.Message}", LogLevel.Error);
+                        _logger.LogToUser($"🔍 StackTrace: {ex.StackTrace}", LogLevel.Debug);
+                        return false;
+                    }
                 }
-                else
+
+                // Логируем отправляемые данные
+                _logger.LogToUser($"📋 Отправка данных на принтер: Barcode={barcode}, Serial={serialNumber}", LogLevel.Debug);
+
+                // Отправляем на печать
+                try
                 {
-                    _logger.LogToUser("❌ Ошибка печати! Принтер не ответил или завершил процесс с ошибкой.", LogLevel.Error);
-                    return false;  // Возвращаем false, если произошла ошибка
+                    bool result = _printerService.PrintLabel(barcode, serialNumber);
+
+                    if (result)
+                    {
+                        _logger.LogToUser("✅ Печать успешна!", LogLevel.Success);
+                        return true;
+                    }
+                    else
+                    {
+                        _logger.LogToUser("❌ Ошибка печати! Принтер не ответил или завершил процесс с ошибкой.", LogLevel.Error);
+                        _logger.LogToUser("🔍 Печать не завершена успешно. Принтер может быть в неготовности или выйти из строя.", LogLevel.Debug);
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogToUser("❌ Исключение во время печати!", LogLevel.Error);
+                    _logger.LogToUser($"📋 Исключение: {ex.Message}", LogLevel.Error);
+                    _logger.LogToUser($"🔍 StackTrace: {ex.StackTrace}", LogLevel.Debug);
+                    return false;
                 }
             }
             catch (Exception ex)
             {
-                // Логируем исключение, если оно возникло
-                _logger.LogToUser($"❌ Ошибка при печати: {ex.Message}", LogLevel.Error);
+                _logger.LogToUser($"❌ Непредвиденная ошибка в методе PrintLabelAsync: {ex.Message}", LogLevel.Error);
                 _logger.LogToUser($"🔍 StackTrace: {ex.StackTrace}", LogLevel.Debug);
-
-                return false;  // Возвращаем false, если ошибка при вызове печати
+                return false;
             }
         }
+
 
 
 
@@ -1958,7 +1976,7 @@ namespace RTL.ViewModels
                     _logger.LogToUser($"✅ Уникальный идентификатор платы: {deviceId}", LogLevel.Success);
                     ServerTestResult.deviceIdent = deviceId;
                 }
-
+                return true;
                 // Получаем серийник с сервера
                 string serialNumber = await GetSerialNumberFromServer(deviceId);
                 if (string.IsNullOrEmpty(serialNumber))
@@ -2617,18 +2635,21 @@ namespace RTL.ViewModels
 
 
 
-
-
-
-
+        public static TestResult ServerTestResult;
         public RtlSwViewModel(Loggers logger, ReportService report)
         {
-
+            ServerTestResult = new TestResult
+            {
+                deviceType = DeviceType.RTL_SW,
+                standName = Environment.MachineName,
+                isSuccess = false,
+                deviceIdent = "default", //серийник платы
+                isFull = false
+            };
 
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             _printerService = new TscPrinterService("TSC TE310");
-            
-            
+
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _logger.Log("RtlSwViewModel инициализирован", Loggers.LogLevel.Success);
@@ -2884,32 +2905,42 @@ namespace RTL.ViewModels
         {
             if (TestConfig.IsReportGenerationEnabled)
             {
-
-                ServerTestResult.isSuccess = isSwTestSuccess;
-                ServerTestResult.isFull = isSwTestFull;
-                //ServerTestResult.deviceIdent = "4e544b4d433030101210112";
-                //ServerTestResult.deviceSerial = "3130000002";                    
-
-
-                DeviceInfo di = Service.SendTestResult(ServerTestResult, SessionId, true);
-                if (di == null)
+                try
                 {
 
-                    di = Service.SendTestResult(ServerTestResult, SessionId, true);
+
+
+
+                    ServerTestResult.isSuccess = isSwTestSuccess;
+                    ServerTestResult.isFull = isSwTestFull;
+
+                    // ServerTestResult.deviceIdent = "4e544b4d433030101210112";
+                    // ServerTestResult.deviceSerial = "3130000002";
+
+                    DeviceInfo di = Service.SendTestResult(ServerTestResult, SessionId, true);
+
                     if (di == null)
                     {
+                        _logger.LogToUser("Первая попытка передачи результатов не удалась. Повторная попытка...", LogLevel.Warning);
 
-                        throw new Exception("Ошибка передачи результатов тестирования на сервер !!!");
+                        di = Service.SendTestResult(ServerTestResult, SessionId, true);
+
+                        if (di == null)
+                        {
+                            throw new Exception("Ошибка передачи результатов тестирования на сервер.");
+                        }
                     }
+
+                    ServerTestResult.deviceSerial = di.serialNumber;
                 }
-                ServerTestResult.deviceSerial = di.serialNumber;
-
-                ServerTestResult.isSuccess = false;
-
-
-
+                catch (Exception ex)
+                {
+                    _logger.LogToUser($"Ошибка при отправке отчёта: {ex.Message}", LogLevel.Error);
+                    _logger.LogToUser($"StackTrace: {ex.StackTrace}", LogLevel.Debug);
+                }
             }
         }
+
 
         private async Task DisconnectStand()
         {

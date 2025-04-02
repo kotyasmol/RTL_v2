@@ -213,7 +213,7 @@
 
                         <!-- SENSOR 1  -->
                         <Rectangle Canvas.Left="1062" Canvas.Top="336" Width="48" Height="54" Fill="{Binding Sensor1Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-                        
+
                         <!-- RELAY  -->
                         <Rectangle Canvas.Left="1062" Canvas.Top="388" Width="48" Height="56" Fill="{Binding RelayStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="998" Canvas.Top="394" Width="43" Height="59"  Fill="{Binding RelayStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
@@ -413,14 +413,33 @@
                     <!-- ToggleSwitch для V52 -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
                         <ToggleButton Width="50" Height="25"
-                  IsChecked="{Binding IsV52Enabled, Mode=TwoWay}"
-                  Style="{StaticResource SwitchButtonStyle}"/>
+    IsChecked="{Binding IsV52Enabled, Mode=TwoWay}"
+    Style="{StaticResource SwitchButtonStyle}"/>
+
 
                         <TextBlock Text="V52" VerticalAlignment="Center" Margin="5,0,0,0"
                FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
 
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
+                        <ToggleButton Width="50" Height="25"
+    IsChecked="{Binding IsV55Enabled, Mode=TwoWay}"
+    Style="{StaticResource SwitchButtonStyle}"/>
 
+
+                        <TextBlock Text="V55" VerticalAlignment="Center" Margin="5,0,0,0"
+               FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
+                        <ToggleButton Width="50" Height="25"
+                            IsChecked="{Binding IsResetEnabled, Mode=TwoWay}"
+                            Style="{StaticResource SwitchButtonStyle}"/>
+
+
+                        <TextBlock Text="Reset" VerticalAlignment="Center" Margin="5,0,0,0"
+                                    FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
 
                     <!-- Можно добавить другие кнопки для управления питанием -->
 

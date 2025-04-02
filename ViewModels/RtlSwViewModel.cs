@@ -2661,7 +2661,6 @@ namespace RTL.ViewModels
             LoadTestProfileCommand = new RelayCommand(async () => await TryLoadTestProfileAsync(), CanExecuteCommand);
 
 
-            ToggleV52Command = new RelayCommand(() => IsV52Enabled = !IsV52Enabled);
 
 
             if (TestConfig != null)
@@ -2687,10 +2686,10 @@ namespace RTL.ViewModels
             {
                 if (!IsModbusConnected)
                 {
-                    _logger.Log($"Modbus отключен. Попытка {attempt} переподключения...", LogLevel.Warning);
+                    _logger.LogToUser($"Modbus отключен. Попытка {attempt} переподключения...", LogLevel.Warning);
                     if (!await TryReconnectModbusAsync(_testCancellationTokenSource.Token))
                     {
-                        _logger.Log("Не удалось переподключиться к Modbus.", LogLevel.Error);
+                        _logger.LogToUser("Не удалось переподключиться к Modbus.", LogLevel.Error);
                         await StopHard();
                         return;
                     }
@@ -2698,20 +2697,22 @@ namespace RTL.ViewModels
 
                 try
                 {
+                    _logger.Log($"Попытка записи в {register}: {value}", LogLevel.Debug); // <---- Новый лог
                     _modbusMaster.WriteSingleRegister(1, register, value);
-                    _logger.Log($"{register} = {value}", LogLevel.Debug);
+                    _logger.Log($"Запись успешна: {register} = {value}", LogLevel.Debug);
                     return; // Успешная запись
                 }
                 catch (Exception ex)
                 {
                     _logger.Log($"Попытка {attempt} записи в регистр {register} не удалась: {ex.Message}", LogLevel.Warning);
-                    await Task.Delay(1000); // Ждём перед следующей попыткой
+                    await Task.Delay(1000);
                 }
             }
 
-            _logger.Log($"Ошибка: не удалось записать {value} в {register} после {retries} попыток.", LogLevel.Error);
+            _logger.LogToUser($"Ошибка: не удалось записать {value} в {register} после {retries} попыток.", LogLevel.Error);
             await StopHard();
         }
+
         private async Task<bool> TryReconnectModbusAsync(CancellationToken cancellationToken)
         {
             _logger.Log("Переподключение к Modbus началось...", LogLevel.Warning);
@@ -2743,18 +2744,75 @@ namespace RTL.ViewModels
 
         #region тумблеры модбас
 
+
         public bool IsV52Enabled
         {
             get => StandRegisters.V52Out == 1;
             set
             {
-                StandRegisters.V52Out = (ushort)(value ? 1 : 0);
-                //WriteToRegisterWithRetry(2301, StandRegisters.V52Out);
-                OnPropertyChanged();
+                if (IsTestRunning) return; // Если тест выполняется, игнорируем изменение
+
+                if (StandRegisters.V52Out != (ushort)(value ? 1 : 0))
+                {
+                    _logger.Log($"Изменение IsV52Enabled: {value}", LogLevel.Debug);
+
+                    StandRegisters.V52Out = (ushort)(value ? 1 : 0);
+                    OnPropertyChanged();
+
+                    // Логируем попытку записи в Modbus
+                    _logger.Log($"Запись в Modbus 2301: {StandRegisters.V52Out}", LogLevel.Debug);
+
+                    _ = WriteToRegisterWithRetryAsync(2301, StandRegisters.V52Out);
+                }
             }
         }
-        public ICommand ToggleV52Command { get; }
 
+
+
+        public bool IsV55Enabled
+        {
+            get => StandRegisters.V55Out == 1;
+            set
+            {
+                if (IsTestRunning) return; // Если тест выполняется, игнорируем изменение
+                if (StandRegisters.V55Out != (ushort)(value ? 1 : 0))
+                {
+                    _logger.Log($"Изменение IsV55Enabled: {value}", LogLevel.Debug);
+
+                    StandRegisters.V55Out = (ushort)(value ? 1 : 0);
+                    OnPropertyChanged();
+
+                    // Логируем попытку записи в Modbus
+                    _logger.Log($"Запись в Modbus 2302: {StandRegisters.V55Out}", LogLevel.Debug);
+
+                    _ = WriteToRegisterWithRetryAsync(2302, StandRegisters.V55Out);
+                }
+            }
+        }
+
+        
+
+
+        public bool IsResetEnabled
+        {
+            get => StandRegisters.ResetOut == 1;
+            set
+            {
+                if (IsTestRunning) return; // Если тест выполняется, игнорируем изменение
+                if (StandRegisters.ResetOut != (ushort)(value ? 1 : 0))
+                {
+                    _logger.Log($"Изменение IsV55Enabled: {value}", LogLevel.Debug);
+
+                    StandRegisters.ResetOut = (ushort)(value ? 1 : 0);
+                    OnPropertyChanged();
+
+                    // Логируем попытку записи в Modbus
+                    _logger.Log($"Запись в Modbus 2307: {StandRegisters.ResetOut}", LogLevel.Debug);
+
+                    _ = WriteToRegisterWithRetryAsync(2307, StandRegisters.ResetOut);
+                }
+            }
+        }
 
         #endregion тумблеры модбас
         #region раскраски

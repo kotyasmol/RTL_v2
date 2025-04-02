@@ -623,5 +623,12 @@ namespace RTL.Models
             get => _rs485RxOk;
             set => SetAndNotify(ref _rs485RxOk, value);
         }
+
+
+
+
+
+
+
     }
 }

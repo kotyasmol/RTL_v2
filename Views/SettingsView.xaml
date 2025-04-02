@@ -55,13 +55,13 @@
                         <Button Content="Выбрать..." Command="{Binding SelectFlashFirmwareCommand}" Margin="5,0,0,0"/>
                     </StackPanel>
 
-                    <TextBlock Text="Прошивка SWD:" FontWeight="Bold" Margin="0,10,0,0"/>
+                    <TextBlock Text="Прошивка SWD (.bat):" FontWeight="Bold" Margin="0,10,0,0"/>
                     <StackPanel Orientation="Horizontal">
                         <TextBox Text="{Binding SwdProgramPath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
                         <Button Content="Выбрать..." Command="{Binding SelectSwdProgramCommand}" Margin="5,0,0,0"/>
                     </StackPanel>
 
-                    <TextBlock Text="Файл прошивки SWD:" FontWeight="Bold" Margin="0,10,0,0"/>
+                    <TextBlock Text="Файл прошивки SWD (.bin):" FontWeight="Bold" Margin="0,10,0,0"/>
                     <StackPanel Orientation="Horizontal">
                         <TextBox Text="{Binding SwdFirmwarePath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
                         <Button Content="Выбрать..." Command="{Binding SelectSwdFirmwareCommand}" Margin="5,0,0,0"/>

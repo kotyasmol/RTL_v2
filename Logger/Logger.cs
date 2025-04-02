@@ -106,7 +106,7 @@ namespace RTL.Logger
 
                 foreach (var file in logFiles)
                 {
-                    if (File.GetCreationTime(file) < DateTime.Now.AddDays(-2))
+                    if (File.GetCreationTime(file) < DateTime.Now.AddDays(-90))
                     {
                         File.Delete(file);
                     }

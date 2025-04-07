@@ -20,7 +20,7 @@ namespace RTL.Converters
             {
                 return testStatus switch
                 {
-                    1 => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1562FE")), // еще не проводили
+                    1 => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1562FE")), // еще не проводили голубой 
                     2 => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#B5E61D")), // Зелёный
                     3 => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FB0574")), // Розовый
                     _ => Brushes.Black

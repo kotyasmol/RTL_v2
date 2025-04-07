@@ -30,6 +30,7 @@ using Microsoft.WindowsAPICodePack.Sensors;
 using FTServiceUtils;
 using Newtonsoft.Json.Linq;
 using RTL.Services;
+using System.Management;
 namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
@@ -664,13 +665,16 @@ namespace RTL.ViewModels
                     if (!IsModbusConnected)
                     {
                         _logger.Log("Modbus отключен. Попытка переподключения...", LogLevel.Warning);
-                        if (!await TryReconnectModbusAsync(_testCancellationTokenSource.Token))
+
+                        if (!await TryReconnectModbusAsync())
                         {
-                            _logger.Log("Не удалось переподключиться к Modbus.", LogLevel.Error);
-                            await HandleModbusDisconnection();
+                            _logger.LogToUser("Не удалось переподключиться к Modbus. Остановка мониторинга.", LogLevel.Error);
+                            IsStandConnected = false; // <--- это ключевое!
                             return;
                         }
                     }
+
+
 
                     // Читаем регистры Modbus (85 регистров, начиная с 2300)
                     var registers = await _modbusMaster.ReadHoldingRegistersAsync(1, 2300, 85);
@@ -815,24 +819,7 @@ namespace RTL.ViewModels
                 await Task.Delay(1000);
             }
         }
-        private async Task HandleModbusDisconnection()
-        {
-            _logger.LogToUser("Modbus недоступен. Отключаем тестирование...", Loggers.LogLevel.Warning);
-            IsTestRunning = false;
 
-            _logger.LogToUser("Снятие питания...", Loggers.LogLevel.Warning);
-            try
-            {
-                await WriteToRegisterWithRetryAsync(2301, 0);
-                await WriteToRegisterWithRetryAsync(2302, 0);
-            }
-            catch
-            {
-                _logger.LogToUser("Ошибка при снятии питания! Проверьте соединение.", Loggers.LogLevel.Error);
-            }
-
-            _logger.LogToUser("Отключите плату вручную.", Loggers.LogLevel.Warning);
-        }
 
         private bool _isTestRunning;
         public bool IsTestRunning
@@ -939,11 +926,6 @@ namespace RTL.ViewModels
         {
             try
             {
-                // иф на необходимость отправки на сервер
-
-
-
-
 
                 IsTestRunning = true;
                 ProgressValue += 5;
@@ -951,12 +933,10 @@ namespace RTL.ViewModels
                 // Подтест 1: VMAIN
                 if (!await RunSubTestK5Async(2323, () => StandRegisters.K5Stage1Status, "VMAIN", ReportModel.Stage1K5, cancellationToken))
                 {
-                    K5TestStatus = 3;
                     RtlStatus = 3;
-                    //_reportGenerator.PrependToReport($"test_result=false=0");
                     isSwTestSuccess = false;
-                    await StopHard();
                     await LoadSwReport();
+                    await StopHard();
                     return false;
                 }
                 if (cancellationToken.IsCancellationRequested) return false;
@@ -964,12 +944,10 @@ namespace RTL.ViewModels
                 // Подтест 2: VMAIN + VRES
                 if (!await RunSubTestK5Async(2325, () => StandRegisters.K5Stage2Status, "VMAIN + VRES", ReportModel.Stage2K5, cancellationToken))
                 {
-                    K5TestStatus = 3;
                     RtlStatus = 3;
-                    _reportGenerator.PrependToReport($"test_result=false=0");
                     isSwTestSuccess = false;
-                    await StopHard();
                     await LoadSwReport();
+                    await StopHard();
                     return false;
                 }
                 if (cancellationToken.IsCancellationRequested) return false;
@@ -979,7 +957,6 @@ namespace RTL.ViewModels
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
-                    _reportGenerator.PrependToReport($"test_result=false=0");
                     isSwTestSuccess = false;
                     await StopHard();
                     await LoadSwReport();
@@ -992,7 +969,6 @@ namespace RTL.ViewModels
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
-                    _reportGenerator.PrependToReport($"test_result=false=0");
                     isSwTestSuccess = false;
                     await StopHard();
                     await LoadSwReport();
@@ -1005,7 +981,7 @@ namespace RTL.ViewModels
                 {
                     K5TestStatus = 3;
                     RtlStatus = 3;
-                    _reportGenerator.PrependToReport($"test_result=false=0");
+                    
                     isSwTestSuccess = false;
                     await StopHard();
                     await LoadSwReport();
@@ -1013,8 +989,6 @@ namespace RTL.ViewModels
                 }
                 if (cancellationToken.IsCancellationRequested) return false;
 
-
-                K5TestStatus = 2;
                 ProgressValue += 5;
                 //  VCC
                 if (!await RunVCCTestAsync(cancellationToken))
@@ -1134,7 +1108,8 @@ namespace RTL.ViewModels
                 if (!TestConfig.IsK5TestEnabled)
                 {
                     _logger.LogToUser($"Тест {testName} пропущен (отключен в профиле).", LogLevel.Warning);
-                    report.ResultK5 = true; // Если тест пропущен, считаем его успешным
+                    
+                    K5TestStatus = 1;
                     return true;
                 }
 
@@ -1146,7 +1121,7 @@ namespace RTL.ViewModels
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
-                        report.ResultK5 = false;
+                        K5TestStatus = 3;
                         return false;
                     }
                     await Task.Delay(500);
@@ -1158,7 +1133,7 @@ namespace RTL.ViewModels
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
-                        report.ResultK5 = false;
+                        K5TestStatus = 3;
                         return false;
                     }
 
@@ -1193,23 +1168,13 @@ namespace RTL.ViewModels
                         );
 
 
-                        // Добавляем запись в общий отчёт
-                        _reportGenerator.AppendToReport(
-                            $"K5 Работа от {testName}{(success ? "=true=" : "=false=")}; " +
-                            $"55V={report.V55Report}; " +
-                            $"52V={report.V52Report}; " +
-                            $"Vout={report.VOUTReport}; " +
-                            $"12V={report.V12Report}; " +
-                            $"Vref={report.V2048Report}"
-                        );
-
-
                         ServerTestResult.AddSubTest(
                             $"K5 Работа от {testName}",
                             success,
                             $"55V={report.V55Report}; " + $"52V={report.V52Report}; " + $"Vout={report.VOUTReport}; " + $"12V={report.V12Report}; " + $"Vref={report.V2048Report}");
 
 
+                        K5TestStatus = status;
                         return success;
                     }
                 }
@@ -1217,7 +1182,7 @@ namespace RTL.ViewModels
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время теста {testName}: {ex.Message}", LogLevel.Error);
-                report.ResultK5 = false;
+                K5TestStatus = 3;
                 return false;
             }
         }
@@ -1242,6 +1207,15 @@ namespace RTL.ViewModels
                 }
 
                 _logger.LogToUser("Тест VCC запущен...", LogLevel.Info);
+
+                // Проверка питания
+                if (StandRegisters.V52Out == 0 && StandRegisters.V55Out == 0)
+                {
+                    _logger.LogToUser("Подача питания на V55 ...", LogLevel.Debug);
+                    await WriteToRegisterWithRetryAsync(2302, 1);
+                }
+
+
 
             restartTest:
                 await WriteToRegisterWithRetryAsync(2330, 1);
@@ -1550,6 +1524,11 @@ namespace RTL.ViewModels
                 return true; // Пропускаем прошивку
             }
 
+            if (StandRegisters.V52Out == 0)
+            {
+                _logger.LogToUser("Подача питания на V52 ...", LogLevel.Debug);
+                await WriteToRegisterWithRetryAsync(2301, 1);
+            }
             string flashToolPath = Properties.Settings.Default.SwdProgramPath; // Путь к flash.bat
             string firmwarePath = Properties.Settings.Default.SwdFirmwarePath; // Путь к файлу прошивки из профиля
             string workingDirectory = Path.GetDirectoryName(flashToolPath); // Рабочая директория
@@ -1662,39 +1641,18 @@ namespace RTL.ViewModels
             }
             ProgressValue += 5;
             // Ожидание загрузки DUT после прошивки
-            /* if (!await WaitForDUTReadyAsync(cancellationToken, false, 30, 180))
+             if (!await WaitForDUTReadyAsync(cancellationToken, false, 30, 180))
             {
                 RtlStatus = 3;
                 ConsoleStatus = 3;
                 _logger.LogToUser("DUT не готов после прошивки.", LogLevel.Error);
-                await StopHard();
-                await LoadSwReport();
-                return false;
-            }*/
-
-
-            if (!await WaitForDUTReadyAsync(cancellationToken, false, 30, 180))
-            {
-                RtlStatus = 3;
-                ConsoleStatus = 3;
-                _logger.LogToUser("DUT не готов после прошивки.", LogLevel.Error);
-
-                // Длинная задержка (например, 10 минут) перед отключением питания
-                int debugPauseSeconds = 600;
-                _logger.LogToUser($"DUT не загрузился. Включена пауза {debugPauseSeconds} секунд для диагностики.", LogLevel.Warning);
-                try
-                {
-                    await Task.Delay(debugPauseSeconds * 1000, cancellationToken);
-                }
-                catch (TaskCanceledException)
-                {
-                    _logger.LogToUser("Ожидание диагностики прервано.", LogLevel.Info);
-                }
-
                 await StopHard();
                 await LoadSwReport();
                 return false;
             }
+
+
+
 
 
             ConsoleStatus = 2;
@@ -1870,75 +1828,73 @@ namespace RTL.ViewModels
             return true;
         }
 
+        #region печать этикетки
 
         public TscPrinterService _printerService;
-
-
         private async Task<bool> PrintLabelAsync()
         {
             try
             {
-                // Проверка на включение печати в конфигурации
                 if (!TestConfig.IsLabelPrintingEnabled)
                 {
-                    _logger.LogToUser("⚠️ Печать отключена в профиле.", LogLevel.Warning);
+                    _logger.LogToUser("Печать отключена в профиле.", LogLevel.Warning);
                     return false;
                 }
 
-                // Проверяем, доступен ли серийный номер
                 string serialNumber = ServerTestResult.deviceSerial;
-                
+                //string serialNumber = "1488"; // Заменишь потом на ServerTestResult.deviceSerial;
                 if (string.IsNullOrEmpty(serialNumber))
                 {
                     _logger.LogToUser("❌ Серийный номер не доступен для печати.", LogLevel.Error);
                     return false;
                 }
 
-                string barcode = serialNumber; // Используем тот же серийный номер для штрихкода
-                _logger.LogToUser($"🖨️ Отправка на печать: Barcode={barcode}, Serial={serialNumber}", LogLevel.Debug);
+                string barcode = serialNumber;
+                _logger.LogToUser($"🖨️ Подготовка к печати: Barcode={barcode}, Serial={serialNumber}", LogLevel.Debug);
 
-                // Проверяем, инициализирован ли принтер
+                string printerName = "TSC TE310";
+
+                // Инициализация принтера
                 if (_printerService == null)
                 {
-                    _logger.LogToUser("❌ Принтер не инициализирован. Попытка повторной инициализации...", LogLevel.Error);
                     try
                     {
-                        _printerService = new TscPrinterService("TSC TE310");
+                        _printerService = new TscPrinterService(printerName);
                         _logger.LogToUser("✅ Принтер инициализирован.", LogLevel.Debug);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogToUser($"❌ Ошибка при инициализации принтера: {ex.Message}", LogLevel.Error);
-                        _logger.LogToUser($"🔍 StackTrace: {ex.StackTrace}", LogLevel.Debug);
                         return false;
                     }
                 }
 
-                // Логируем отправляемые данные
+                // Проверка установлен ли
+                if (!_printerService.IsPrinterInstalled())
+                {
+                    _logger.LogToUser($"❌ Принтер \"{printerName}\" не найден в системе.", LogLevel.Error);
+                    return false;
+                }
+
+                // Проверка в онлайне ли он
+                if (!_printerService.IsPrinterOnline())
+                {
+                    _logger.LogToUser($"❌ Принтер \"{printerName}\" оффлайн или не готов.", LogLevel.Error);
+                    return false;
+                }
+
                 _logger.LogToUser($"📋 Отправка данных на принтер: Barcode={barcode}, Serial={serialNumber}", LogLevel.Debug);
 
-                // Отправляем на печать
-                try
-                {
-                    bool result = _printerService.PrintLabel(barcode, serialNumber);
+                bool result = _printerService.PrintLabel(barcode, serialNumber);
 
-                    if (result)
-                    {
-                        _logger.LogToUser("✅ Печать успешна!", LogLevel.Success);
-                        return true;
-                    }
-                    else
-                    {
-                        _logger.LogToUser("❌ Ошибка печати! Принтер не ответил или завершил процесс с ошибкой.", LogLevel.Error);
-                        _logger.LogToUser("🔍 Печать не завершена успешно. Принтер может быть в неготовности или выйти из строя.", LogLevel.Debug);
-                        return false;
-                    }
-                }
-                catch (Exception ex)
+                if (result)
                 {
-                    _logger.LogToUser("❌ Исключение во время печати!", LogLevel.Error);
-                    _logger.LogToUser($"📋 Исключение: {ex.Message}", LogLevel.Error);
-                    _logger.LogToUser($"🔍 StackTrace: {ex.StackTrace}", LogLevel.Debug);
+                    _logger.LogToUser("✅ Печать завершена успешно!", LogLevel.Success);
+                    return true;
+                }
+                else
+                {
+                    _logger.LogToUser("❌ Печать завершена с ошибкой. Принтер вернул false.", LogLevel.Error);
                     return false;
                 }
             }
@@ -1951,8 +1907,7 @@ namespace RTL.ViewModels
         }
 
 
-
-
+        #endregion печать этикетки
 
         #region серийник
         private async Task<bool> RunSerialNumberTestAsync(CancellationToken cancellationToken)
@@ -2113,9 +2068,66 @@ namespace RTL.ViewModels
         #region Самотестирование
         private async Task<bool> RunSelfTestAsync(CancellationToken cancellationToken)
         {
-            _logger.LogToUser("Заглушка самотестирования: выполнение не предусмотрено.", LogLevel.Info);
-            await Task.Delay(500, cancellationToken); // Имитация выполнения
-            return true; // Всегда успешно
+            try
+            {
+                _logger.LogToUser("Запуск самотестирования устройства...", LogLevel.Info);
+
+                string[] errorParams = { "HW_ERR1", "HW_ERR2", "HW_ERR3" };
+                var errorsDetected = new List<string>();
+
+                foreach (var param in errorParams)
+                {
+                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    {
+                        _logger.LogToUser("Самотестирование прервано пользователем.", LogLevel.Warning);
+                        _reportGenerator.AppendToReport("SelfTest=false=тест прерван вручную.");
+                        ServerTestResult.AddSubTest("SelfTest", false, "тест прерван вручную");
+                        return false;
+                    }
+
+                    string command = $"ubus call tf_hwsys getParam '{{\"name\":\"{param}\"}}'";
+                    string result = await SendConsoleCommandAsync(command);
+
+                    _logger.Log($"Результат {param}: {result}", LogLevel.Debug);
+
+                    // Пытаемся извлечь значение параметра (ожидается формат "HW_ERRx": "0")
+                    string expectedKey = $"\"{param}\": \"";
+                    int index = result.IndexOf(expectedKey);
+                    if (index == -1)
+                    {
+                        _logger.Log($"Ошибка парсинга ответа для {param}. Ответ: {result}", LogLevel.Error);
+                        errorsDetected.Add($"{param}=недоступен");
+                        continue;
+                    }
+
+                    string value = result.Substring(index + expectedKey.Length, 1); // только 1 символ: "0" или "1"
+                    if (value != "0")
+                    {
+                        errorsDetected.Add($"{param}={value}");
+                    }
+                }
+
+                if (errorsDetected.Count > 0)
+                {
+                    string errorMessage = "Обнаружены ошибки самотестирования: " + string.Join(", ", errorsDetected);
+                    _logger.LogToUser(errorMessage, LogLevel.Error);
+                    _reportGenerator.AppendToReport($"SelfTest=false={errorMessage}");
+                    ServerTestResult.AddSubTest("SelfTest", false, errorMessage);
+                    return false;
+                }
+
+                _logger.LogToUser("Самотестирование завершено успешно.", LogLevel.Success);
+                _reportGenerator.AppendToReport("SelfTest=true=Самотестирование завершено успешно.");
+                ServerTestResult.AddSubTest("SelfTest", true, "1");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при выполнении самотестирования: {ex.Message}", LogLevel.Error);
+                _reportGenerator.AppendToReport($"SelfTest=false={ex.Message}");
+                ServerTestResult.AddSubTest("SelfTest", false, ex.Message);
+                return false;
+            }
         }
 
 
@@ -2686,13 +2698,12 @@ namespace RTL.ViewModels
             {
                 if (!IsModbusConnected)
                 {
-                    _logger.LogToUser($"Modbus отключен. Попытка {attempt} переподключения...", LogLevel.Warning);
-                    if (!await TryReconnectModbusAsync(_testCancellationTokenSource.Token))
+                    if (!await TryReconnectModbusAsync())
                     {
                         _logger.LogToUser("Не удалось переподключиться к Modbus.", LogLevel.Error);
-                        await StopHard();
                         return;
                     }
+
                 }
 
                 try
@@ -2712,33 +2723,39 @@ namespace RTL.ViewModels
             _logger.LogToUser($"Ошибка: не удалось записать {value} в {register} после {retries} попыток.", LogLevel.Error);
             await StopHard();
         }
-
-        private async Task<bool> TryReconnectModbusAsync(CancellationToken cancellationToken)
+        private async Task<bool> TryReconnectModbusAsync()
         {
-            _logger.Log("Переподключение к Modbus началось...", LogLevel.Warning);
-
-            while (true) // Бесконечный цикл попыток
+            for (int attempt = 1; attempt <= 3; attempt++)
             {
-                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                try
                 {
-                    _logger.Log("Переподключение остановлено (кнопка RUN в положении 0).", LogLevel.Warning);
-                    return false;
+                    _logger.LogToUser($"Попытка {attempt} переподключения к Modbus...", LogLevel.Warning);
+
+                    DisconnectModbus(); // Закрываем текущее соединение
+                    await Task.Delay(2000); // Даем устройству время перед новым подключением
+
+                    if (await TryInitializeModbusAsync())
+                    {
+                        _logger.LogToUser("Подключение к Modbus восстановлено.", LogLevel.Success);
+                        return true;
+                    }
+
+                    _logger.LogToUser($"Попытка {attempt} не удалась.", LogLevel.Warning);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogToUser($"Ошибка при переподключении (попытка {attempt}): {ex.Message}", LogLevel.Error);
                 }
 
-                DisconnectModbus(); // Закрываем текущее соединение
-
-                _logger.Log("Пытаемся переподключиться к Modbus...", LogLevel.Info);
-                await Task.Delay(2000, cancellationToken); // Ожидание перед попыткой подключения
-
-                if (await TryInitializeModbusAsync())
-                {
-                    _logger.Log("Подключение к Modbus восстановлено.", LogLevel.Success);
-                    return true;
-                }
-
-                _logger.Log("Не удалось подключиться к Modbus, повторяем попытку...", LogLevel.Warning);
+                await Task.Delay(5000); // Интервал между попытками
             }
+
+            _logger.LogToUser("Все попытки переподключения к Modbus не удались.", LogLevel.Error);
+            return false;
         }
+
+
+
 
         #region  GUI логика
 
@@ -2947,6 +2964,7 @@ namespace RTL.ViewModels
             _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
             await WriteToRegisterWithRetryAsync(2301, 0);
             await WriteToRegisterWithRetryAsync(2302, 0);
+            await WriteToRegisterWithRetryAsync(2307, 0);
 
             await Task.Delay(500); // Даем время на обработку
             IsTestRunning = false;

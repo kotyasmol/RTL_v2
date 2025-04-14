@@ -31,6 +31,7 @@ using FTServiceUtils;
 using Newtonsoft.Json.Linq;
 using RTL.Services;
 using System.Management;
+using System.Reflection;
 namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
@@ -90,10 +91,13 @@ namespace RTL.ViewModels
         {
             if (IsStandConnected) // Если мы уже подключены, то отключаемся
             {
+
                 await DisconnectStand();
                 _logger.LogToUser("Ручное отключение от стенда - ОК", Loggers.LogLevel.Info);
+                
                 IsStandConnected = false;  // Обновляем состояние
                 IsTestRunning = false;
+
                 return;
             }
 
@@ -1538,7 +1542,7 @@ namespace RTL.ViewModels
             if (!File.Exists(flashToolPath))
             {
                 _logger.LogToUser($"Ошибка: Не найден скрипт прошивки по пути {flashToolPath}.", LogLevel.Error);
-                _reportGenerator.AppendToReport($"прошивка SWD=false=скрипт прошивки {flashToolPath} не найден");
+                
                 ServerTestResult.AddSubTest($"прошивка SWD", false, $"скрипт прошивки {flashToolPath} не найден");
                 return false;
             }
@@ -1599,13 +1603,13 @@ namespace RTL.ViewModels
                     if (process.ExitCode != 0)
                     {
                         _logger.LogToUser($"Ошибка прошивки! Код выхода: {process.ExitCode}", LogLevel.Error);
-                        _reportGenerator.AppendToReport($"прошивка SWD=false={process.ExitCode}");
+                        
                         ServerTestResult.AddSubTest($"прошивка SWD", false, $"{process.ExitCode}");
                         return false;
                     }
 
                     _logger.LogToUser("Прошивка завершена успешно!", LogLevel.Success);
-                    _reportGenerator.AppendToReport($"прошивка SWD=true={firmwarePath}");
+                    
                     ServerTestResult.AddSubTest($"прошивка SWD", true, $"{firmwarePath}");
                     return true;
                 }
@@ -2645,7 +2649,8 @@ namespace RTL.ViewModels
 
         #endregion тестирование
 
-
+        public ICommand OpenFlashProgramCommand { get; }
+        public ICommand OpenSwdProgramCommand { get; }
 
         public static TestResult ServerTestResult;
         public RtlSwViewModel(Loggers logger, ReportService report)
@@ -2671,6 +2676,9 @@ namespace RTL.ViewModels
             ToggleModbusConnectionCommand = new RelayCommand(async () => await ToggleModbusConnection(), CanExecuteCommand);
             ConnectToServerCommand = new RelayCommand(async () => await TryConnectToServerAsync(), CanExecuteCommand);
             LoadTestProfileCommand = new RelayCommand(async () => await TryLoadTestProfileAsync(), CanExecuteCommand);
+            OpenFlashProgramCommand = new AsyncRelayCommand(OpenFlashProgramAsync, () => true);
+            OpenSwdProgramCommand = new AsyncRelayCommand(OpenSwdProgramAsync, () => true);
+
 
 
 
@@ -2692,6 +2700,234 @@ namespace RTL.ViewModels
                 await ToggleConnectionAsync();
             });
         }
+
+
+        private async Task OpenFlashProgramAsync()
+        {
+            try
+            {
+                string exePath = Properties.Settings.Default.FlashProgramPath;
+                string tempPdfPath = Path.Combine(Path.GetTempPath(), "Прошивка.pdf");
+
+                if (!File.Exists(exePath))
+                {
+                    _logger.LogToUser($"❌ Файл прошивальщика не найден: {exePath}", LogLevel.Error);
+                    return;
+                }
+
+                // Подача питания
+                await WriteToRegisterWithRetryAsync(2301, 1);
+                await WriteToRegisterWithRetryAsync(2307, 1);
+                _logger.LogToUser("⚡ Питание подано", LogLevel.Debug);
+
+                // Открытие инструкции, если ещё не открыта
+                if (!IsPdfInstructionAlreadyOpen(tempPdfPath))
+                {
+                    using (Stream resource = Assembly.GetExecutingAssembly()
+                        .GetManifestResourceStream("RTL.Resources.Instructions.instructionForSw.pdf"))
+                    {
+                        if (resource != null)
+                        {
+                            using (FileStream file = new FileStream(tempPdfPath, FileMode.Create, FileAccess.Write))
+                            {
+                                await resource.CopyToAsync(file);
+                            }
+
+                            Process.Start(new ProcessStartInfo
+                            {
+                                FileName = tempPdfPath,
+                                UseShellExecute = true
+                            });
+
+                            _logger.LogToUser("📘 Инструкция открыта.", LogLevel.Info);
+                        }
+                        else
+                        {
+                            _logger.LogToUser("❌ Встроенный PDF не найден.", LogLevel.Error);
+                        }
+                    }
+                }
+                else
+                {
+                    _logger.LogToUser("📘 Инструкция уже открыта. Повторный запуск не требуется.", LogLevel.Info);
+                }
+
+                // Запуск программы прошивки
+                var flashProcess = Process.Start(new ProcessStartInfo
+                {
+                    FileName = exePath,
+                    UseShellExecute = true
+                });
+
+                if (flashProcess != null)
+                {
+                    _logger.LogToUser("✅ Программа прошивки запущена. Ожидаю завершения...", LogLevel.Info);
+
+                    // Асинхронно ждём завершения процесса
+                    await Task.Run(() => flashProcess.WaitForExit());
+
+                    _logger.LogToUser("🔚 Программа прошивки завершена.", LogLevel.Info);
+                }
+                else
+                {
+                    _logger.LogToUser("⚠️ Не удалось запустить программу прошивки.", LogLevel.Warning);
+                }
+
+                // Снятие питания
+                await WriteToRegisterWithRetryAsync(2301, 0);
+                await WriteToRegisterWithRetryAsync(2307, 0);
+                _logger.LogToUser("⚡ Питание снято", LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"❌ Ошибка при запуске: {ex.Message}", LogLevel.Error);
+            }
+        }
+
+        private async Task OpenSwdProgramAsync()
+        {
+            try
+            {
+                string flashToolPath = Properties.Settings.Default.SwdProgramPath;
+                string firmwarePath = Properties.Settings.Default.SwdFirmwarePath;
+                string workingDirectory = Path.GetDirectoryName(flashToolPath);
+
+                if (!File.Exists(flashToolPath))
+                {
+                    _logger.LogToUser($"❌ Скрипт прошивки не найден: {flashToolPath}", LogLevel.Error);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(firmwarePath) || !File.Exists(firmwarePath))
+                {
+                    _logger.LogToUser($"❌ Файл прошивки не найден: {firmwarePath}", LogLevel.Error);
+                    return;
+                }
+
+                _logger.LogToUser("⚡ Подача питания перед прошивкой...", LogLevel.Info);
+                await WriteToRegisterWithRetryAsync(2301, 1);
+                await Task.Delay(1000);
+
+                string formattedFirmwarePath = $"\"{firmwarePath.Replace("\\", "/")}\"";
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = flashToolPath,
+                    Arguments = formattedFirmwarePath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = workingDirectory
+                };
+
+                _logger.LogToUser($"🚀 Запуск прошивки с аргументом: {formattedFirmwarePath}", LogLevel.Info);
+
+                int exitCode = -1;
+
+                using (var process = new Process { StartInfo = psi })
+                {
+                    process.OutputDataReceived += (s, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                            _logger.Log(e.Data, LogLevel.Debug);
+                    };
+
+                    process.ErrorDataReceived += (s, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                            _logger.Log(e.Data, LogLevel.Error);
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    var timeoutTask = Task.Delay(TimeSpan.FromSeconds(20));
+                    var waitForExitTask = process.WaitForExitAsync();
+
+                    var completedTask = await Task.WhenAny(waitForExitTask, timeoutTask);
+
+                    if (completedTask == timeoutTask)
+                    {
+                        try
+                        {
+                            _logger.LogToUser("⏱️ Время ожидания прошивки истекло. Возможна проблема с программатором.", LogLevel.Warning);
+                            if (!process.HasExited)
+                                process.Kill();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogToUser($"❌ Ошибка при попытке завершить процесс: {ex.Message}", LogLevel.Error);
+                        }
+
+                        return;
+                    }
+
+                    exitCode = process.ExitCode;
+                }
+
+                if (exitCode != 0)
+                {
+                    _logger.LogToUser($"❌ Ошибка прошивки! Код выхода: {exitCode}", LogLevel.Error);
+
+                    if (exitCode == 1)
+                        _logger.LogToUser("⚠️ Возможно, устройство не подключено или не найдено.", LogLevel.Warning);
+                    else if (exitCode == 2)
+                        _logger.LogToUser("⚠️ Ошибка доступа к HEX-файлу или неверный путь.", LogLevel.Warning);
+                }
+                else
+                {
+                    _logger.LogToUser("✅ Прошивка успешно завершена.", LogLevel.Success);
+                }
+
+                await Task.Delay(500);
+                await WriteToRegisterWithRetryAsync(2301, 0);
+                _logger.LogToUser("⚡ Питание снято", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"❌ Исключение при прошивке: {ex.Message}", LogLevel.Error);
+            }
+        }
+
+
+
+
+
+        private bool IsPdfInstructionAlreadyOpen(string pdfPath)
+        {
+            var processes = Process.GetProcesses();
+
+            return processes.Any(p =>
+            {
+                try
+                {
+                    return !string.IsNullOrEmpty(p.MainWindowTitle) &&
+                           p.MainWindowTitle.Contains("Прошивка") &&
+                           !p.HasExited;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         public async Task WriteToRegisterWithRetryAsync(ushort register, ushort value, int retries = 3)
         {
             for (int attempt = 1; attempt <= retries; attempt++)
@@ -3020,6 +3256,7 @@ namespace RTL.ViewModels
 
         private async Task DisconnectStand()
         {
+            await StopHard();
             _isCancellationRequested = true; // Устанавливаем флаг для прерывания
             await Task.Delay(500); // Небольшая задержка, чтобы избежать гонки состояний
 

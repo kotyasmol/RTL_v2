@@ -279,10 +279,11 @@
         <Grid Grid.Column="1" Margin="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <!-- Для Border (кнопки управления) -->
                 <ColumnDefinition Width="Auto"/>
-                <!-- Expander -->
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
+
+
 
 
 
@@ -443,8 +444,34 @@
 
                     <!-- Можно добавить другие кнопки для управления питанием -->
 
+
                 </StackPanel>
+                
             </Expander>
+            <StackPanel Grid.Column="1" Grid.Row="0" Margin="10,20,100,0" VerticalAlignment="Top">
+                <Button Content="📄FLASH"
+            Command="{Binding OpenFlashProgramCommand}"
+            IsEnabled="{Binding IsModbusConnected }"
+            Padding="12,6"
+            Width="100"
+            Height="40"
+            FontWeight="Bold"
+            Background="#1562FE"
+            Foreground="White"
+            ToolTip="Открыть программу прошивки"/>
+
+
+                <Button Content="📄SWD"
+            Command="{Binding OpenSwdProgramCommand}"
+            IsEnabled="{Binding IsModbusConnected }"
+            Padding="12,6"
+            Width="100"
+            Height="40"
+            FontWeight="Bold"
+            Background="#1562FE"
+            Foreground="White"
+            ToolTip="Открыть программу прошивки"/>
+            </StackPanel>
 
             <!-- WrapPanel с элементами -->
             <WrapPanel Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal">

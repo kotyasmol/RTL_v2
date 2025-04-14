@@ -7,10 +7,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <StartupObject>RTL.App</StartupObject>
+    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
     <None Remove="Resources\Images\PlateImages\RTL_SW1.png" />
+    <None Remove="Resources\Instructions\instructionForSw.pdf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Instructions\instructionForSw.pdf" />
   </ItemGroup>
 
   <ItemGroup>

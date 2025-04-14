@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <StartupObject>RTL.App</StartupObject>
-    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
+    <AssemblyName>TFortisBoard</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

@@ -97,7 +97,7 @@
             <Viewbox Stretch="Uniform">
                 <Grid>
                     <!-- Изображение -->
-                    <Image Source="/RTL;component/Resources/Images/PlateImages/RTL_SW1.png" />
+                    <Image Source="/TFortisBoard;component/Resources/Images/PlateImages/RTL_SW1.png" />
 
                     <!-- Полупрозрачные прямоугольники поверх изображения -->
                     <Canvas>

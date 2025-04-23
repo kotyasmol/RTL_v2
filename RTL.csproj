@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Resources\Images\PlateImages\RTL_POE.png" />
     <EmbeddedResource Include="Resources\Instructions\instructionForSw.pdf" />
   </ItemGroup>
 

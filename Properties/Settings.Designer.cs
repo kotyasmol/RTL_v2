@@ -37,7 +37,7 @@ namespace RTL.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("C:/Logs")]
+        [global::System.Configuration.DefaultSettingValueAttribute("C:/TFortisBoardLogs")]
         public string LogFolderPath {
             get {
                 return ((string)(this["LogFolderPath"]));
@@ -50,36 +50,12 @@ namespace RTL.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string ReportFolderPath {
-            get {
-                return ((string)(this["ReportFolderPath"]));
-            }
-            set {
-                this["ReportFolderPath"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string RtlSwProfilePath {
             get {
                 return ((string)(this["RtlSwProfilePath"]));
             }
             set {
                 this["RtlSwProfilePath"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string RtlPoeProfilePath {
-            get {
-                return ((string)(this["RtlPoeProfilePath"]));
-            }
-            set {
-                this["RtlPoeProfilePath"] = value;
             }
         }
         
@@ -152,6 +128,30 @@ namespace RTL.Properties {
             }
             set {
                 this["SwdFirmwarePath"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ComPoe {
+            get {
+                return ((string)(this["ComPoe"]));
+            }
+            set {
+                this["ComPoe"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string RtlPoeProfilePath {
+            get {
+                return ((string)(this["RtlPoeProfilePath"]));
+            }
+            set {
+                this["RtlPoeProfilePath"] = value;
             }
         }
     }

@@ -1,15 +1,12 @@
 ﻿<UserControl x:Class="RTL.Views.RtlSwView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:hc="https://handyorg.github.io/handycontrol"
-             xmlns:local="clr-namespace:RTL.Converters">
-
-
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:hc="https://handyorg.github.io/handycontrol"
+	xmlns:local="clr-namespace:RTL.Converters">
     <UserControl.Resources>
         <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
         <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
         <local:UShortToColorConverter x:Key="UShortToColorConverter"/>
-
         <Style x:Key="RoundButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="50"/>
             <Setter Property="Height" Value="50"/>
@@ -17,7 +14,6 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Background" Value="#B5E61D"/>
         </Style>
-
         <Style x:Key="SwitchButtonStyle" TargetType="ToggleButton">
             <Setter Property="Template">
                 <Setter.Value>
@@ -28,7 +24,6 @@
                             Width="50" Height="25"
                             CornerRadius="12.5"
                             Background="#D3D3D3"/>
-
                             <!-- Ползунок -->
                             <Ellipse x:Name="SwitchThumb"
                              Width="20" Height="20"
@@ -41,7 +36,6 @@
                                 </Ellipse.RenderTransform>
                             </Ellipse>
                         </Grid>
-
                         <ControlTemplate.Triggers>
                             <!-- Изменение цвета фона -->
                             <Trigger Property="IsChecked" Value="True">
@@ -50,7 +44,6 @@
                             <Trigger Property="IsChecked" Value="False">
                                 <Setter TargetName="SwitchBackground" Property="Background" Value="#D3D3D3"/>
                             </Trigger>
-
                             <!-- Анимация движения ползунка -->
                             <EventTrigger RoutedEvent="ToggleButton.Checked">
                                 <BeginStoryboard>
@@ -62,7 +55,6 @@
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
-
                             <EventTrigger RoutedEvent="ToggleButton.Unchecked">
                                 <BeginStoryboard>
                                     <Storyboard>
@@ -78,19 +70,12 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
-
     </UserControl.Resources>
-
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
-
-
-
-
         <!-- Левая колонка -->
         <StackPanel Grid.Column="0" HorizontalAlignment="Stretch" Margin="15,15,0,0">
             <!-- Изображение -->
@@ -98,12 +83,10 @@
                 <Grid>
                     <!-- Изображение -->
                     <Image Source="/TFortisBoard;component/Resources/Images/PlateImages/RTL_SW1.png" />
-
                     <!-- Полупрозрачные прямоугольники поверх изображения -->
                     <Canvas>
                         <!-- TAMPER -->
                         <Rectangle Canvas.Left="20" Canvas.Top="7" Width="158" Height="40" Fill="{Binding TamperStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8"  Stroke="Black" StrokeThickness="2"/>
-
                         <!-- 1,5V -->
                         <Rectangle Fill="{Binding V15Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" Canvas.Left="20" Canvas.Top="77" Width="11" Height="16"  Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Fill="{Binding V15Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" Height="29" Canvas.Left="39" Canvas.Top="151" Width="48"  Stroke="Black" StrokeThickness="2"/>
@@ -114,7 +97,6 @@
                         <Rectangle Fill="{Binding V15Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" Height="14" Canvas.Left="45" Canvas.Top="98" Width="35" Stroke="Black" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                         <Rectangle Fill="{Binding V15Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" Height="14" Canvas.Left="87" Canvas.Top="105" Width="8"  Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Fill="{Binding V15Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" Height="14" Canvas.Left="87" Canvas.Top="127" Width="8"  Stroke="Black" StrokeThickness="2"/>
-
                         <!-- SPI  первая прошивка-->
                         <Rectangle Canvas.Left="380" Canvas.Top="9" Width="48" Height="33" Fill="{Binding FlashStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="408" Canvas.Top="54" Width="36" Height="36" Fill="{Binding FlashStatus, Converter={StaticResource UShortToColorConverter}}" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
@@ -130,7 +112,6 @@
                         <Rectangle Canvas.Left="609" Canvas.Top="10" Width="140" Height="105"
            Fill="{Binding K5TestStatus, Converter={StaticResource UShortToColorConverter}}"
            Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
-
                         <Rectangle Canvas.Left="550" Canvas.Top="45" Width="14" Height="8"
            Fill="{Binding K5TestStatus, Converter={StaticResource UShortToColorConverter}}"
            Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
@@ -176,12 +157,9 @@
                         <Ellipse Canvas.Left="764" Canvas.Top="69" Width="54" Height="53"
          Fill="{Binding K5TestStatus, Converter={StaticResource UShortToColorConverter}}"
          Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
-
                         <!-- 3,3V -->
                         <Rectangle Canvas.Left="690" Canvas.Top="127" Width="167" Height="167" Fill="{Binding V33Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="657" Canvas.Top="216" Width="29" Height="48" Fill="{Binding V33Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-
-
                         <!-- RTL -->
                         <Rectangle Canvas.Left="308" Canvas.Top="223" Width="186" Height="187" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="316" Canvas.Top="182" Width="118" Height="24" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
@@ -199,56 +177,33 @@
                                 </TransformGroup>
                             </Rectangle.RenderTransform>
                         </Rectangle>
-
-
                         <!-- MCU -->
                         <Rectangle Canvas.Left="912" Canvas.Top="266" Width="65" Height="65" Fill="{Binding RtlStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-
                         <!-- RS-485  -->
                         <Rectangle Canvas.Left="1075" Canvas.Top="213" Width="37" Height="54" Fill="{Binding Rs485Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-
-
                         <!-- SENSOR 2  -->
                         <Rectangle Canvas.Left="1075" Canvas.Top="282" Width="37" Height="37"   Fill="{Binding Sensor2Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-
                         <!-- SENSOR 1  -->
                         <Rectangle Canvas.Left="1062" Canvas.Top="336" Width="48" Height="54" Fill="{Binding Sensor1Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-
                         <!-- RELAY  -->
                         <Rectangle Canvas.Left="1062" Canvas.Top="388" Width="48" Height="56" Fill="{Binding RelayStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="998" Canvas.Top="394" Width="43" Height="59"  Fill="{Binding RelayStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-
-
                         <!-- 1,1V  -->
                         <Rectangle Canvas.Left="797" Canvas.Top="358" Width="32" Height="29" Fill="{Binding V11Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="778" Canvas.Top="334" Width="67" Height="19" Fill="{Binding V11Status, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-
                         <!-- 12C  -->
                         <Rectangle Canvas.Left="836" Canvas.Top="383" Width="36" Height="70"  Fill="{Binding I2CStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Left" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
                         <Rectangle Canvas.Left="816" Canvas.Top="417" Width="17" Height="31"  Fill="{Binding I2CStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-
                         <!-- CR2032  -->
                         <Ellipse Canvas.Left="888" Canvas.Top="468" Width="132" Height="132" Fill="{Binding CrStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="Black" StrokeThickness="2"/>
-
-
                         <!-- POE  -->
                         <Rectangle Canvas.Left="1069" Canvas.Top="473" Width="39" Height="118" Fill="{Binding PoeStatus, Converter={StaticResource UShortToColorConverter}}" Opacity="0.8" HorizontalAlignment="Center" VerticalAlignment="Top" Stroke="Black" StrokeThickness="2"/>
-
-
-
-
                     </Canvas>
-
                 </Grid>
             </Viewbox>
-
-
-
             <!-- ProgressButton -->
             <ProgressBar Minimum="0" Maximum="100" Height="15" Margin="0,10,0,10" 
                  Value="{Binding ProgressValue}"  />
-
-
             <!-- Логи -->
             <ListBox x:Name="LogListBox" ItemsSource="{Binding Logs}" Height="320"
          ScrollViewer.HorizontalScrollBarVisibility="Auto"
@@ -266,15 +221,7 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
-
-
-
-
-
         </StackPanel>
-
-
-
         <!-- Правая колонка -->
         <Grid Grid.Column="1" Margin="10">
             <Grid.ColumnDefinitions>
@@ -282,11 +229,6 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-
-
-
-
-
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <!-- Для Border -->
@@ -297,14 +239,11 @@
                 <RowDefinition Height="*"/>
                 <!-- Заполнитель -->
             </Grid.RowDefinitions>
-
-
             <!-- Border с кнопками управления -->
             <Border  Grid.Column="0" Grid.Row="0"
             BorderBrush="{Binding IsDarkTheme, Converter={StaticResource BoolToColorConverter}}" 
             BorderThickness="2" CornerRadius="10" Padding="10">
                 <StackPanel Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Center">
-
                     <!-- Кнопка подключения с ProgressButton -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="-5,5" HorizontalAlignment="Left">
                         <Button Width="150" Height="30" 
@@ -317,7 +256,6 @@
                                        Margin="0,0,0,0" Foreground="White"/>
                         </Button>
                     </StackPanel>
-
                     <!-- Кнопка Профиль тестирования -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
                         <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
@@ -335,7 +273,6 @@
                                    
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
-
                     <!-- Кнопка Сервер -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
                         <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
@@ -352,7 +289,6 @@
                         <TextBlock Text="Сервер" VerticalAlignment="Center" Margin="10,0,0,0"                             
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
-
                     <!-- Кнопка Modbus -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
                         <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
@@ -369,7 +305,6 @@
                         <TextBlock Text="Modbus" VerticalAlignment="Center" Margin="10,0,0,0"
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
-
                     <!-- Кнопка DUT -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
                         <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
@@ -386,7 +321,6 @@
                         <TextBlock Text="Console" VerticalAlignment="Center" Margin="10,0,0,0"
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
-
                     <!-- Кнопка Run -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5">
                         <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
@@ -403,50 +337,35 @@
                         <TextBlock Text="Test RUN" VerticalAlignment="Center" Margin="10,0,0,0"
                                    FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
-
                 </StackPanel>
             </Border>
-
             <Expander Grid.Row="0" Header="ПИТАНИЕ" IsExpanded="True" Margin="168,18,0,0" 
           HorizontalAlignment="Left" Width="148">
                 <StackPanel Margin="5">
-
                     <!-- ToggleSwitch для V52 -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
                         <ToggleButton Width="50" Height="25"
     IsChecked="{Binding IsV52Enabled, Mode=TwoWay}"
     Style="{StaticResource SwitchButtonStyle}"/>
-
-
                         <TextBlock Text="V52" VerticalAlignment="Center" Margin="5,0,0,0"
                FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
-
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
                         <ToggleButton Width="50" Height="25"
     IsChecked="{Binding IsV55Enabled, Mode=TwoWay}"
     Style="{StaticResource SwitchButtonStyle}"/>
-
-
                         <TextBlock Text="V55" VerticalAlignment="Center" Margin="5,0,0,0"
                FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
-
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
                         <ToggleButton Width="50" Height="25"
                             IsChecked="{Binding IsResetEnabled, Mode=TwoWay}"
                             Style="{StaticResource SwitchButtonStyle}"/>
-
-
                         <TextBlock Text="Reset" VerticalAlignment="Center" Margin="5,0,0,0"
                                     FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
-
                     <!-- Можно добавить другие кнопки для управления питанием -->
-
-
                 </StackPanel>
-                
             </Expander>
             <StackPanel Grid.Column="1" Grid.Row="0" Margin="10,20,100,0" VerticalAlignment="Top">
                 <Button Content="📄FLASH"
@@ -459,8 +378,6 @@
             Background="#1562FE"
             Foreground="White"
             ToolTip="Открыть программу прошивки"/>
-
-
                 <Button Content="📄SWD"
             Command="{Binding OpenSwdProgramCommand}"
             IsEnabled="{Binding IsModbusConnected }"
@@ -472,7 +389,6 @@
             Foreground="White"
             ToolTip="Открыть программу прошивки"/>
             </StackPanel>
-
             <!-- WrapPanel с элементами -->
             <WrapPanel Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal">
                 <!-- 52V 2309 -->
@@ -483,18 +399,15 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                 VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="52V" FontWeight="Black" Foreground="White"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding StandRegisters.V52}" 
+                            <TextBlock Text="{Binding StandRegisters.V52Display}" 
                        FontSize="22" FontWeight="Black" 
                        HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_52V_Min - K5_52V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.K5_52V_Min, UpdateSourceTrigger=PropertyChanged}" 
@@ -506,31 +419,25 @@
                         </StackPanel>
                     </Grid>
                 </Border>
-
-
                 <!-- 55V 2310 -->
-
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                 VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="55V" FontWeight="Black" Foreground="White"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.V55}" 
+                            <TextBlock Text="{Binding StandRegisters.V55Display}" 
                        FontSize="22" FontWeight="Black" 
                        HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.K5_55V_Min, UpdateSourceTrigger=PropertyChanged}" 
@@ -542,33 +449,25 @@
                         </StackPanel>
                     </Grid>
                 </Border>
-
-
-
                 <!-- VOUT 2311 -->
-
-
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                                 VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="VOUT" FontWeight="Black" Foreground="White"
                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.VOut}" 
+                            <TextBlock Text="{Binding StandRegisters.VOutDisplay}" 
         FontSize="22" FontWeight="Black" 
         HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.VoutMin, UpdateSourceTrigger=PropertyChanged}" 
@@ -580,31 +479,25 @@
                         </StackPanel>
                     </Grid>
                 </Border>
-
-
                 <!-- 12V 2313 -->
-
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                         VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="12V" FontWeight="Black" Foreground="White"
                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.V12}" 
+                            <TextBlock Text="{Binding StandRegisters.V12Display}" 
 FontSize="22" FontWeight="Black" 
 HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.V12Min, UpdateSourceTrigger=PropertyChanged}" 
@@ -616,32 +509,25 @@ HorizontalAlignment="Center" Foreground="White"/>
                         </StackPanel>
                     </Grid>
                 </Border>
-
-
                 <!-- REF 2048 2312 -->
-
-
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                                 VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="VREF" FontWeight="Black" Foreground="White"
                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.Ref2048}" 
+                            <TextBlock Text="{Binding StandRegisters.Ref2048Display}" 
         FontSize="22" FontWeight="Black" 
         HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.VrefMin, UpdateSourceTrigger=PropertyChanged}" 
@@ -653,37 +539,27 @@ HorizontalAlignment="Center" Foreground="White"/>
                         </StackPanel>
                     </Grid>
                 </Border>
-
-
-
-
             </WrapPanel>
-
-
             <WrapPanel Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,20,0,0">
                 <!-- 3.3V 2314 -->
-
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                         VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="3,3V" FontWeight="Black" Foreground="White"
                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.V3_3}" 
+                            <TextBlock Text="{Binding StandRegisters.V3_3Display}" 
                                        FontSize="22" FontWeight="Black" 
                                        HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.Vcc3V3Min, UpdateSourceTrigger=PropertyChanged}" 
@@ -695,7 +571,6 @@ HorizontalAlignment="Center" Foreground="White"/>
                         </StackPanel>
                     </Grid>
                 </Border>
-
                 <!-- 1.5V 2315 -->
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
@@ -703,21 +578,18 @@ HorizontalAlignment="Center" Foreground="White"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                         VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="1,5V" FontWeight="Black" Foreground="White"
                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.V1_5}" 
+                            <TextBlock Text="{Binding StandRegisters.V1_5Display}" 
                                        FontSize="22" FontWeight="Black" 
                                        HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.Vcc1V5Min, UpdateSourceTrigger=PropertyChanged}" 
@@ -729,7 +601,6 @@ HorizontalAlignment="Center" Foreground="White"/>
                         </StackPanel>
                     </Grid>
                 </Border>
-
                 <!-- 1.1V 2316 -->
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
@@ -737,21 +608,18 @@ HorizontalAlignment="Center" Foreground="White"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                         VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="1,1V" FontWeight="Black" Foreground="White"
                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.V1_1}" 
+                            <TextBlock Text="{Binding StandRegisters.V1_1Display}" 
                                        FontSize="22" FontWeight="Black" 
                                        HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.Vcc1V1Min, UpdateSourceTrigger=PropertyChanged}" 
@@ -763,31 +631,25 @@ HorizontalAlignment="Center" Foreground="White"/>
                         </StackPanel>
                     </Grid>
                 </Border>
-
-
                 <!-- CR2032 2317 -->
-
                 <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                         VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="CR" FontWeight="Black" Foreground="White"
                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.CR2032}" 
+                            <TextBlock Text="{Binding StandRegisters.CR2032Display }" 
                                        FontSize="22" FontWeight="Black" 
                                        HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.CR2032Min, UpdateSourceTrigger=PropertyChanged}" 
@@ -806,26 +668,22 @@ HorizontalAlignment="Center" Foreground="White"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <!-- Кружок с подписью -->
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
-        VerticalAlignment="Center" HorizontalAlignment="Center">
+                                VerticalAlignment="Center" HorizontalAlignment="Center">
                             <StackPanel Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <TextBlock Text="CR" FontWeight="Black" Foreground="White" 
-                   HorizontalAlignment="Center"/>
-                                <TextBlock Text="CPU" FontWeight="Black" Foreground="White" 
-                   HorizontalAlignment="Center"/>
+                                 <TextBlock Text="CR" FontWeight="Black" Foreground="White" 
+                                           HorizontalAlignment="Center"/>
+                                 <TextBlock Text="CPU" FontWeight="Black" Foreground="White" 
+                                           HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>
-
-
                         <!-- Значения -->
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <!-- Значение StandRegisters.V55 -->
-                            <TextBlock Text="{Binding StandRegisters.CR2032_CPU}" 
+                            <TextBlock Text="{Binding StandRegisters.CR2032_CPUDisplay}" 
                                        FontSize="22" FontWeight="Black" 
                                        HorizontalAlignment="Center" Foreground="White"/>
-
                             <!-- Контейнер для K5_55V_Min - K5_55V_Max -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.CR2032CpuMin, UpdateSourceTrigger=PropertyChanged}" 
@@ -837,14 +695,7 @@ HorizontalAlignment="Center" Foreground="White"/>
                         </StackPanel>
                     </Grid>
                 </Border>
-
-
-
-
             </WrapPanel>
-
         </Grid>
-
-
     </Grid>
 </UserControl>

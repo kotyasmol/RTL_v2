@@ -42,10 +42,9 @@ namespace RTL.ViewModels
         private bool _isCancellationRequested;
 
         public event PropertyChangedEventHandler PropertyChanged;
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
+
+        public ICommand OpenFlashProgramCommand { get; }
+        public ICommand OpenSwdProgramCommand { get; }
 
 
         #region логи
@@ -675,8 +674,6 @@ namespace RTL.ViewModels
                         }
                     }
 
-
-
                     // Читаем регистры Modbus (85 регистров, начиная с 2300)
                     var registers = await _modbusMaster.ReadHoldingRegistersAsync(1, 2300, 85);
                     #region обновление значений
@@ -692,6 +689,7 @@ namespace RTL.ViewModels
                     // --------------------------------------- друзья в гуи 
                     StandRegisters.V52 = registers[9];
                     StandRegisters.V55 = registers[10];
+
                     StandRegisters.VOut = registers[11];
                     StandRegisters.Ref2048 = registers[12];
                     StandRegisters.V12 = registers[13];
@@ -1633,11 +1631,6 @@ namespace RTL.ViewModels
                 await LoadSwReport();
                 return false;
             }
-
-
-
-
-
             ConsoleStatus = 2;
             ProgressValue += 5;
             // Самотестирование
@@ -1899,7 +1892,6 @@ namespace RTL.ViewModels
 
 
         #endregion печать этикетки
-
         #region серийник
         private async Task<bool> RunSerialNumberTestAsync(CancellationToken cancellationToken)
         {
@@ -2603,8 +2595,6 @@ namespace RTL.ViewModels
 
         #endregion тестирование
 
-        public ICommand OpenFlashProgramCommand { get; }
-        public ICommand OpenSwdProgramCommand { get; }
 
         public static TestResult ServerTestResult;
         public RtlSwViewModel(Loggers logger, ReportService report)
@@ -2631,7 +2621,7 @@ namespace RTL.ViewModels
             LoadTestProfileCommand = new RelayCommand(async () => await TryLoadTestProfileAsync(), CanExecuteCommand);
             OpenFlashProgramCommand = new AsyncRelayCommand(OpenFlashProgramAsync, () => true);
             OpenSwdProgramCommand = new AsyncRelayCommand(OpenSwdProgramAsync, () => true);
-
+            ConnectCommand = new AsyncRelayCommand(ToggleConnectionAsync);  // Кнопка "Подключиться к стенду
 
             if (TestConfig != null)
             {
@@ -2643,12 +2633,11 @@ namespace RTL.ViewModels
             }
 
 
-            ConnectCommand = new AsyncRelayCommand(ToggleConnectionAsync);  // Кнопка "Подключиться к стенду"
-            Task.Run(async () => // Автоматическое подключение к стенду
+            /*Task.Run(async () => // Автоматическое подключение к стенду
             {
                 await Task.Delay(1000);
                 await ToggleConnectionAsync();
-            });
+            });*/
         }
 
 
@@ -2919,8 +2908,10 @@ namespace RTL.ViewModels
             _logger.LogToUser("Все попытки переподключения к Modbus не удались.", LogLevel.Error);
             return false;
         }
-
-
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
 
 
         #region  GUI логика
@@ -3196,8 +3187,6 @@ namespace RTL.ViewModels
                 _logger.LogToUser("Генерация и отправка отчета отключены в настройках профиля.", LogLevel.Warning);
             }
         }
-
-
 
         private async Task DisconnectStand()
         {

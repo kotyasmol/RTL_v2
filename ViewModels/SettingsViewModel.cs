@@ -44,19 +44,7 @@ namespace RTL.ViewModels
             }
         }
 
-        private string _reportFolderPath;
-        public string ReportFolderPath
-        {
-            get => _reportFolderPath;
-            set
-            {
-                if (SetAndNotify(ref _reportFolderPath, value))
-                {
-                    Properties.Settings.Default.ReportFolderPath = value;
-                    Properties.Settings.Default.Save();
-                }
-            }
-        }
+
 
         private string _rtlSwProfilePath;
         public string RtlSwProfilePath
@@ -210,12 +198,10 @@ namespace RTL.ViewModels
 
             // Устанавливаем пути по умолчанию
             LogFolderPath = string.IsNullOrEmpty(Properties.Settings.Default.LogFolderPath)
-                ? Path.Combine(Directory.GetCurrentDirectory(), "Logs")
+                ? Path.Combine(Directory.GetCurrentDirectory(), "TFortisBoardLogs")
                 : Properties.Settings.Default.LogFolderPath;
 
-            ReportFolderPath = string.IsNullOrEmpty(Properties.Settings.Default.ReportFolderPath)
-                ? Path.Combine(Directory.GetCurrentDirectory(), "Reports")
-                : Properties.Settings.Default.ReportFolderPath;
+
 
             RtlSwProfilePath = Properties.Settings.Default.RtlSwProfilePath ?? string.Empty;
             RtlPoeProfilePath = Properties.Settings.Default.RtlPoeProfilePath ?? string.Empty;
@@ -226,9 +212,7 @@ namespace RTL.ViewModels
 
             // Создаём команды
             SelectLogFolderCommand = new RelayCommand(SelectLogFolder);
-            SelectReportFolderCommand = new RelayCommand(SelectReportFolder);
             SelectRtlSwProfileCommand = new RelayCommand(SelectRtlSwProfile);
-            SelectRtlPoeProfileCommand = new RelayCommand(SelectRtlPoeProfile);
             SelectFlashProgramCommand = new RelayCommand(SelectFlashProgram);
             SelectFlashFirmwareCommand = new RelayCommand(SelectFlashFirmware);
             SelectSwdProgramCommand = new RelayCommand(SelectSwdProgram);
@@ -239,6 +223,18 @@ namespace RTL.ViewModels
 
             SelectedComPort = Properties.Settings.Default.ComSW;
             SelectedDutPort = Properties.Settings.Default.DutSW;
+
+
+
+
+
+
+
+
+
+
+
+            SelectRtlPoeProfileCommand = new RelayCommand(SelectRtlPoeProfile);
 
         }
 
@@ -261,14 +257,7 @@ namespace RTL.ViewModels
             }
         }
 
-        private void SelectReportFolder()
-        {
-            var dialog = new CommonOpenFileDialog { IsFolderPicker = true, InitialDirectory = ReportFolderPath };
-            if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
-            {
-                ReportFolderPath = dialog.FileName;
-            }
-        }
+
 
         private void SelectRtlSwProfile()
         {

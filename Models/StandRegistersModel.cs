@@ -87,49 +87,145 @@ namespace RTL.Models
             set => SetAndNotify(ref _bootOut, value);
         }
 
+
+
+
+
+
+
+
+
         private ushort _v52;
         public ushort V52
         {
             get => _v52;
-            set => SetAndNotify(ref _v52, value);
+            set
+            {
+                if (SetAndNotify(ref _v52, value))
+                {
+                    OnPropertyChanged(nameof(V52Display));
+                }
+            }
         }
+        public ushort V52Display => (_v52 > 56000 || _v52 < 1000) ? (ushort)0 : _v52;
+
 
         private ushort _v55;
         public ushort V55
         {
             get => _v55;
-            set => SetAndNotify(ref _v55, value);
+            set
+            {
+                if (SetAndNotify(ref _v55, value))
+                    OnPropertyChanged(nameof(V55Display));
+            }
         }
+        public ushort V55Display => (_v55 > 56000 || _v55 < 1000) ? (ushort)0 : _v55;
 
         private ushort _vOut;
         public ushort VOut
         {
             get => _vOut;
-            set => SetAndNotify(ref _vOut, value);
+            set
+            {
+                if (SetAndNotify(ref _vOut, value))
+                    OnPropertyChanged(nameof(VOutDisplay));
+            }
         }
+        public ushort VOutDisplay => (_vOut > 56000 || _vOut < 1) ? (ushort)0 : _vOut;
+
 
         private ushort _ref2048;
         public ushort Ref2048
         {
             get => _ref2048;
-            set => SetAndNotify(ref _ref2048, value);
+            set
+            {
+                if (SetAndNotify(ref _ref2048, value))
+                    OnPropertyChanged(nameof(Ref2048Display));
+            }
         }
+        public ushort Ref2048Display => (_ref2048 > 6000 || _ref2048 < 1000) ? (ushort)0 : _ref2048;
 
         private ushort _v12;
         public ushort V12
         {
             get => _v12;
-            set => SetAndNotify(ref _v12, value);
+            set
+            {
+                if (SetAndNotify(ref _v12, value))
+                    OnPropertyChanged(nameof(V12Display));
+            }
         }
-
-
-
+        public ushort V12Display => (_v12 > 20000 || _v12 < 1000) ? (ushort)0 : _v12;
 
         private ushort _v3_3;
+        public ushort V3_3
+        {
+            get => _v3_3;
+            set
+            {
+                if (SetAndNotify(ref _v3_3, value))
+                    OnPropertyChanged(nameof(V3_3Display));
+            }
+        }
+        public ushort V3_3Display => (_v3_3 > 5000 || _v3_3 < 1000) ? (ushort)0 : _v3_3;
+
         private ushort _v1_5;
+        public ushort V1_5
+        {
+            get => _v1_5;
+            set
+            {
+                if (SetAndNotify(ref _v1_5, value))
+                    OnPropertyChanged(nameof(V1_5Display));
+            }
+        }
+        public ushort V1_5Display => (_v1_5 > 5000 || _v1_5 < 1000) ? (ushort)0 : _v1_5;
+
         private ushort _v1_1;
+        public ushort V1_1
+        {
+            get => _v1_1;
+            set
+            {
+                if (SetAndNotify(ref _v1_1, value))
+                    OnPropertyChanged(nameof(V1_1Display));
+            }
+        }
+        public ushort V1_1Display => (_v1_1 > 5000 || _v1_1 < 1000) ? (ushort)0 : _v1_1;
+
         private ushort _cr2032;
+        public ushort CR2032
+        {
+            get => _cr2032;
+            set
+            {
+                if (SetAndNotify(ref _cr2032, value))
+                    OnPropertyChanged(nameof(CR2032Display));
+            }
+        }
+        public ushort CR2032Display => (_cr2032 > 5000 || _cr2032 < 100) ? (ushort)0 : _cr2032;
+
         private ushort _cr2032Cpu;
+        public ushort CR2032_CPU
+        {
+            get => _cr2032Cpu;
+            set
+            {
+                if (SetAndNotify(ref _cr2032Cpu, value))
+                    OnPropertyChanged(nameof(CR2032_CPUDisplay));
+            }
+        }
+        public ushort CR2032_CPUDisplay => (_cr2032Cpu > 5000 || _cr2032Cpu < 100) ? (ushort)0 : _cr2032Cpu;
+
+
+
+
+
+
+
+
         private ushort _statusTamper;
         private ushort _statusTamperLed;
         private ushort _runBtn;
@@ -197,36 +293,7 @@ namespace RTL.Models
         private ushort _rs485Enable;
         private ushort _rs485RxOk;
 
-        // Свойства с уведомлением об изменении
-        public ushort V3_3
-        {
-            get => _v3_3;
-            set => SetAndNotify(ref _v3_3, value);
-        }
 
-        public ushort V1_5
-        {
-            get => _v1_5;
-            set => SetAndNotify(ref _v1_5, value);
-        }
-
-        public ushort V1_1
-        {
-            get => _v1_1;
-            set => SetAndNotify(ref _v1_1, value);
-        }
-
-        public ushort CR2032
-        {
-            get => _cr2032;
-            set => SetAndNotify(ref _cr2032, value);
-        }
-
-        public ushort CR2032_CPU
-        {
-            get => _cr2032Cpu;
-            set => SetAndNotify(ref _cr2032Cpu, value);
-        }
 
         public ushort Status_Tamper
         {

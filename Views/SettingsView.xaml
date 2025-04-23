@@ -16,12 +16,6 @@
                         <TextBox Text="{Binding LogFolderPath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
                         <Button Content="Выбрать..." Command="{Binding SelectLogFolderCommand}" Margin="5,0,0,0"/>
                     </StackPanel>
-
-                    <TextBlock Text="Папка для отчетов:" FontWeight="Bold" Margin="0,10,0,0"/>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBox Text="{Binding ReportFolderPath, Mode=TwoWay}" Width="200" IsReadOnly="True"/>
-                        <Button Content="Выбрать..." Command="{Binding SelectReportFolderCommand}" Margin="5,0,0,0"/>
-                    </StackPanel>
                 </StackPanel>
             </Expander>
 
@@ -78,6 +72,10 @@
                         <Button Content="Выбрать..." Command="{Binding SelectRtlPoeProfileCommand}" Margin="5,0,0,0"/>
                     </StackPanel>
                 </StackPanel>
+
+
+
+
             </Expander>
 
         </StackPanel>

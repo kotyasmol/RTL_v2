@@ -6,15 +6,9 @@
       <Value Profile="(Default)">Dark</Value>
     </Setting>
     <Setting Name="LogFolderPath" Type="System.String" Scope="User">
-      <Value Profile="(Default)">C:/Logs</Value>
-    </Setting>
-    <Setting Name="ReportFolderPath" Type="System.String" Scope="User">
-      <Value Profile="(Default)" />
+      <Value Profile="(Default)">C:/TFortisBoardLogs</Value>
     </Setting>
     <Setting Name="RtlSwProfilePath" Type="System.String" Scope="User">
-      <Value Profile="(Default)" />
-    </Setting>
-    <Setting Name="RtlPoeProfilePath" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
     <Setting Name="ComSW" Type="System.String" Scope="User">
@@ -33,6 +27,12 @@
       <Value Profile="(Default)" />
     </Setting>
     <Setting Name="SwdFirmwarePath" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ComPoe" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="RtlPoeProfilePath" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
   </Settings>

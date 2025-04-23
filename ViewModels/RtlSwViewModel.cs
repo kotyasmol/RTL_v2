@@ -219,7 +219,7 @@ namespace RTL.ViewModels
                             ReportModel.StandType = standType;
                             ReportModel.StandSerialNumber = standSerial;
 
-                            _logger.LogToUser($"Тип стенда: {standType} (STAND RTL-SW), Серийный номер: {standSerial}", Loggers.LogLevel.Info);
+                            _logger.Log($"Тип стенда: {standType} (STAND RTL-SW), Серийный номер: {standSerial}", Loggers.LogLevel.Info);
                             return true;
                         }
                         catch (Exception ex)
@@ -271,7 +271,37 @@ namespace RTL.ViewModels
         }
 
 
+        public async Task WriteToRegisterWithRetryAsync(ushort register, ushort value, int retries = 3)
+        {
+            for (int attempt = 1; attempt <= retries; attempt++)
+            {
+                if (!IsModbusConnected)
+                {
+                    if (!await TryReconnectModbusAsync())
+                    {
+                        _logger.LogToUser("Не удалось переподключиться к Modbus.", LogLevel.Error);
+                        return;
+                    }
 
+                }
+
+                try
+                {
+                    _logger.Log($"Попытка записи в {register}: {value}", LogLevel.Debug); // <---- Новый лог
+                    _modbusMaster.WriteSingleRegister(1, register, value);
+                    _logger.Log($"Запись успешна: {register} = {value}", LogLevel.Debug);
+                    return; // Успешная запись
+                }
+                catch (Exception ex)
+                {
+                    _logger.Log($"Попытка {attempt} записи в регистр {register} не удалась: {ex.Message}", LogLevel.Warning);
+                    await Task.Delay(1000);
+                }
+            }
+
+            _logger.LogToUser($"Ошибка: не удалось записать {value} в {register} после {retries} попыток.", LogLevel.Error);
+            await StopHard();
+        }
 
         private void DisconnectModbus()
         {
@@ -834,6 +864,14 @@ namespace RTL.ViewModels
         #region тестирование
         private async Task<bool> PrepareStandForTestingAsync()
         {
+            ServerTestResult = new TestResult
+            {
+                deviceType = DeviceType.RTL_SW,
+                standName = Environment.MachineName,
+                isSuccess = false,
+                deviceIdent = "default", //серийник платы
+                isFull = false
+            };
             try
             {
                 isSwTestFull = false;
@@ -1198,7 +1236,6 @@ namespace RTL.ViewModels
 
                 _logger.LogToUser("Тестирование внутрисхемных питаний (VCC)", LogLevel.Info);
 
-                // Проверка подачи питания на V55
                 if (StandRegisters.V52Out == 0 && StandRegisters.V55Out == 0)
                 {
                     _logger.Log("Подача питания на V55 ...", LogLevel.Debug);
@@ -1209,7 +1246,6 @@ namespace RTL.ViewModels
                 {
                     await WriteToRegisterWithRetryAsync(2330, 1);
 
-                    // Ожидание старта теста
                     while (StandRegisters.VCCTestStatus == 0)
                     {
                         if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
@@ -1223,7 +1259,6 @@ namespace RTL.ViewModels
 
                     _logger.LogToUser("Ожидание завершения теста VCC...", LogLevel.Info);
 
-                    // Ожидание завершения теста
                     while (true)
                     {
                         if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
@@ -1236,19 +1271,27 @@ namespace RTL.ViewModels
                         await Task.Delay(5000, cancellationToken);
 
                         var status = StandRegisters.VCCTestStatus;
-
                         if (status == 2 || status == 3)
                         {
                             bool success = status == 2;
                             SaveVCCReport(success);
                             ValidateVCCResults();
 
+                            List<string> problems = new();
+                            if (V33Status != 2) problems.Add($"3.3V (вне диапазона {TestConfig.Vcc3V3Min}–{TestConfig.Vcc3V3Max})");
+                            if (V15Status != 2) problems.Add($"1.5V (вне диапазона {TestConfig.Vcc1V5Min}–{TestConfig.Vcc1V5Max})");
+                            if (V11Status != 2) problems.Add($"1.1V (вне диапазона {TestConfig.Vcc1V1Min}–{TestConfig.Vcc1V1Max})");
+                            if (CrStatus != 2) problems.Add($"CR2032 (вне диапазона {TestConfig.CR2032Min}–{TestConfig.CR2032Max})");
+                            if (CrCpuStatus != 2) problems.Add($"CR2032 CPU (вне диапазона {TestConfig.CR2032CpuMin}–{TestConfig.CR2032CpuMax})");
+
                             string measurementResults = $"3.3V={ReportModel.VCC.V33Report}; 1.5V={ReportModel.VCC.V15Report}; " +
                                                         $"1.1V={ReportModel.VCC.V11Report}; CR2032={ReportModel.VCC.CR2032Report}; " +
                                                         $"CR2032 CPU={ReportModel.VCC.CpuCR2032Report}";
 
-                            _logger.LogToUser($"Результаты измерений: {measurementResults}", success ? LogLevel.Info : LogLevel.Warning);
+                            if (!success && problems.Any())
+                                measurementResults += $"; Нарушения: {string.Join(", ", problems)}";
 
+                            _logger.LogToUser($"Результаты измерений: {measurementResults}", success ? LogLevel.Info : LogLevel.Warning);
                             ServerTestResult.AddSubTest("VCC", success, measurementResults);
 
                             if (success)
@@ -1257,21 +1300,10 @@ namespace RTL.ViewModels
                                 return true;
                             }
 
-                            // Неуспех — проверка, есть ли смысл повторять
-                            List<string> outOfRange = new();
-
-                            if (V33Status != 2) outOfRange.Add("3.3V");
-                            if (V15Status != 2) outOfRange.Add("1.5V");
-                            if (V11Status != 2) outOfRange.Add("1.1V");
-                            if (CrStatus != 2) outOfRange.Add("CR2032");
-                            if (CrCpuStatus != 2) outOfRange.Add("CR2032 CPU");
-
-                            _logger.LogToUser($"Напряжения вне диапазона: {string.Join(", ", outOfRange)}", LogLevel.Warning);
-
                             if (attempt == 1)
                             {
                                 _logger.LogToUser("Повторный запуск теста VCC...", LogLevel.Warning);
-                                break; // второй шанс
+                                break; // ещё одна попытка
                             }
 
                             _logger.LogToUser("Тестирование узла VCC завершено с ошибкой.", LogLevel.Error);
@@ -1296,6 +1328,7 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+
 
 
         private void ValidateVCCResults()
@@ -2611,14 +2644,7 @@ namespace RTL.ViewModels
         public static TestResult ServerTestResult;
         public RtlSwViewModel(Loggers logger, ReportService report)
         {
-            ServerTestResult = new TestResult
-            {
-                deviceType = DeviceType.RTL_SW,
-                standName = Environment.MachineName,
-                isSuccess = false,
-                deviceIdent = "default", //серийник платы
-                isFull = false
-            };
+
 
             _isFirstFlashProgramming = true; // для первоначальной настройки xgpro.exe
 
@@ -2859,37 +2885,7 @@ namespace RTL.ViewModels
                 }
             });
         }
-        public async Task WriteToRegisterWithRetryAsync(ushort register, ushort value, int retries = 3)
-        {
-            for (int attempt = 1; attempt <= retries; attempt++)
-            {
-                if (!IsModbusConnected)
-                {
-                    if (!await TryReconnectModbusAsync())
-                    {
-                        _logger.LogToUser("Не удалось переподключиться к Modbus.", LogLevel.Error);
-                        return;
-                    }
-
-                }
-
-                try
-                {
-                    _logger.Log($"Попытка записи в {register}: {value}", LogLevel.Debug); // <---- Новый лог
-                    _modbusMaster.WriteSingleRegister(1, register, value);
-                    _logger.Log($"Запись успешна: {register} = {value}", LogLevel.Debug);
-                    return; // Успешная запись
-                }
-                catch (Exception ex)
-                {
-                    _logger.Log($"Попытка {attempt} записи в регистр {register} не удалась: {ex.Message}", LogLevel.Warning);
-                    await Task.Delay(1000);
-                }
-            }
-
-            _logger.LogToUser($"Ошибка: не удалось записать {value} в {register} после {retries} попыток.", LogLevel.Error);
-            await StopHard();
-        }
+       
         private async Task<bool> TryReconnectModbusAsync()
         {
             for (int attempt = 1; attempt <= 3; attempt++)

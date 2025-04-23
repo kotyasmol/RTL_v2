@@ -4,7 +4,7 @@
            xmlns:hc="https://handyorg.github.io/handycontrol"
            xmlns:local="clr-namespace:RTL.Views"
            xmlns:s="https://github.com/canton7/Stylet"
-           Title="REALTEK STAND"
+           Title="TFortis BOARD"
            Width="1250"
            Height="800"
            MinWidth="1250"

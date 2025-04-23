@@ -524,7 +524,9 @@ namespace RTL.ViewModels
                         if (response.IsSuccessStatusCode && !responseContent.Contains("error"))
                         {
                             _logger.LogToUser($"Подключение к серверу успешно. Код: {response.StatusCode}", LogLevel.Success);
-                            SessionId = GetSessionId("alex", "alex", 5); //id сессии, без него не отправишь рез-ты
+                            //SessionId = GetSessionId("alex", "alex", 5); //id сессии, без него не отправишь рез-ты
+                            SessionId = App.StartupSessionId;
+
                             IsServerConnected = true;
                             return true;
                         }
@@ -2645,7 +2647,7 @@ namespace RTL.ViewModels
         public RtlSwViewModel(Loggers logger, ReportService report)
         {
 
-
+            SessionId = App.StartupSessionId;
             _isFirstFlashProgramming = true; // для первоначальной настройки xgpro.exe
 
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);

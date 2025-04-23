@@ -1198,83 +1198,90 @@ namespace RTL.ViewModels
 
                 _logger.LogToUser("Тестирование внутрисхемных питаний (VCC)", LogLevel.Info);
 
-                // Проверка питания
+                // Проверка подачи питания на V55
                 if (StandRegisters.V52Out == 0 && StandRegisters.V55Out == 0)
                 {
                     _logger.Log("Подача питания на V55 ...", LogLevel.Debug);
                     await WriteToRegisterWithRetryAsync(2302, 1);
                 }
 
-            restartTest:
-                await WriteToRegisterWithRetryAsync(2330, 1);
-
-                // Ожидание запуска теста
-                while (StandRegisters.VCCTestStatus == 0)
+                for (int attempt = 1; attempt <= 2; attempt++)
                 {
-                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                    await WriteToRegisterWithRetryAsync(2330, 1);
+
+                    // Ожидание старта теста
+                    while (StandRegisters.VCCTestStatus == 0)
                     {
-                        SaveVCCReport(false);
-                        _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
-                        return false;
-                    }
-                    await Task.Delay(500, cancellationToken);
-                }
-
-                _logger.LogToUser("Ожидание завершения теста VCC...", LogLevel.Info);
-
-                // Мониторинг завершения теста
-                while (true)
-                {
-                    if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
-                    {
-                        SaveVCCReport(false);
-                        _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
-                        return false;
-                    }
-
-                    await Task.Delay(5000, cancellationToken);
-                    var status = StandRegisters.VCCTestStatus;
-
-                    if (status == 2 || status == 3)
-                    {
-                        bool success = status == 2;
-
-                        SaveVCCReport(success);
-                        ValidateVCCResults();
-
-                        // Пользовательский лог: результаты измерений
-                        _logger.LogToUser(
-                            $"Результаты измерений: 3.3V={ReportModel.VCC.V33Report}; 1.5V={ReportModel.VCC.V15Report}; 1.1V={ReportModel.VCC.V11Report}; CR2032={ReportModel.VCC.CR2032Report}; CR2032 CPU={ReportModel.VCC.CpuCR2032Report}",
-                            success ? LogLevel.Info : LogLevel.Warning);
-
-                        // В системный отчёт
-                        ServerTestResult.AddSubTest(
-                            $"VCC",
-                            success,
-                            $"3.3V={ReportModel.VCC.V33Report}; 1.5V={ReportModel.VCC.V15Report}; 1.1V={ReportModel.VCC.V11Report}; CR2032={ReportModel.VCC.CR2032Report}; CR2032 CPU={ReportModel.VCC.CpuCR2032Report}");
-
-                        if (!success)
+                        if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                         {
-                            bool shouldRestart = (V33Status == 2) &&
-                                                 (V15Status == 2) &&
-                                                 (V11Status == 2) &&
-                                                 (CrStatus == 2) &&
-                                                 (CrCpuStatus == 2);
+                            SaveVCCReport(false);
+                            _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в 0).", LogLevel.Warning);
+                            return false;
+                        }
+                        await Task.Delay(500, cancellationToken);
+                    }
 
-                            if (shouldRestart)
+                    _logger.LogToUser("Ожидание завершения теста VCC...", LogLevel.Info);
+
+                    // Ожидание завершения теста
+                    while (true)
+                    {
+                        if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
+                        {
+                            SaveVCCReport(false);
+                            _logger.LogToUser("Тест VCC прерван (кнопка RUN переведена в 0).", LogLevel.Warning);
+                            return false;
+                        }
+
+                        await Task.Delay(5000, cancellationToken);
+
+                        var status = StandRegisters.VCCTestStatus;
+
+                        if (status == 2 || status == 3)
+                        {
+                            bool success = status == 2;
+                            SaveVCCReport(success);
+                            ValidateVCCResults();
+
+                            string measurementResults = $"3.3V={ReportModel.VCC.V33Report}; 1.5V={ReportModel.VCC.V15Report}; " +
+                                                        $"1.1V={ReportModel.VCC.V11Report}; CR2032={ReportModel.VCC.CR2032Report}; " +
+                                                        $"CR2032 CPU={ReportModel.VCC.CpuCR2032Report}";
+
+                            _logger.LogToUser($"Результаты измерений: {measurementResults}", success ? LogLevel.Info : LogLevel.Warning);
+
+                            ServerTestResult.AddSubTest("VCC", success, measurementResults);
+
+                            if (success)
                             {
-                                _logger.LogToUser("Тест VCC завершился с ошибкой, но значения в допустимых пределах. Повторный запуск...", LogLevel.Warning);
-                                goto restartTest;
+                                _logger.LogToUser("Тестирование узла VCC пройдено успешно.", LogLevel.Success);
+                                return true;
+                            }
+
+                            // Неуспех — проверка, есть ли смысл повторять
+                            List<string> outOfRange = new();
+
+                            if (V33Status != 2) outOfRange.Add("3.3V");
+                            if (V15Status != 2) outOfRange.Add("1.5V");
+                            if (V11Status != 2) outOfRange.Add("1.1V");
+                            if (CrStatus != 2) outOfRange.Add("CR2032");
+                            if (CrCpuStatus != 2) outOfRange.Add("CR2032 CPU");
+
+                            _logger.LogToUser($"Напряжения вне диапазона: {string.Join(", ", outOfRange)}", LogLevel.Warning);
+
+                            if (attempt == 1)
+                            {
+                                _logger.LogToUser("Повторный запуск теста VCC...", LogLevel.Warning);
+                                break; // второй шанс
                             }
 
                             _logger.LogToUser("Тестирование узла VCC завершено с ошибкой.", LogLevel.Error);
                             return false;
                         }
-
-                        _logger.LogToUser("Тестирование узла VCC пройдено успешно.", LogLevel.Success);
-                        return true;
                     }
                 }
+
+                _logger.LogToUser("Тест VCC завершён с ошибкой после повторной попытки.", LogLevel.Error);
+                return false;
             }
             catch (TaskCanceledException)
             {
@@ -1291,6 +1298,27 @@ namespace RTL.ViewModels
         }
 
 
+        private void ValidateVCCResults()
+        {
+            V33Status = ValidateRange("3.3V", StandRegisters.V3_3Report, TestConfig.Vcc3V3Min, TestConfig.Vcc3V3Max);
+            V15Status = ValidateRange("1.5V", StandRegisters.V1_5Report, TestConfig.Vcc1V5Min, TestConfig.Vcc1V5Max);
+            V11Status = ValidateRange("1.1V", StandRegisters.V1_1Report, TestConfig.Vcc1V1Min, TestConfig.Vcc1V1Max);
+            CrStatus = ValidateRange("CR2032", StandRegisters.CR2032Report, TestConfig.CR2032Min, TestConfig.CR2032Max);
+            CrCpuStatus = ValidateRange("CR2032 CPU", StandRegisters.CR2032_CPUReport, TestConfig.CR2032CpuMin, TestConfig.CR2032CpuMax);
+        }
+
+        private ushort ValidateRange(string label, double value, double min, double max)
+        {
+            if (Math.Abs(value - min) < 0.0001 || Math.Abs(value - max) < 0.0001 || value < min || value > max)
+            {
+                _logger.LogToUser($"{label} вне диапазона: {value} (допустимо от {min} до {max}).", LogLevel.Warning);
+                return 3; // Ошибка
+            }
+
+            return 2; // OK
+        }
+
+
         private void SaveVCCReport(bool isSuccess)
         {
             ReportModel.VCC.ResultVcc = isSuccess;
@@ -1302,29 +1330,13 @@ namespace RTL.ViewModels
         }
 
 
-        private void ValidateVCCResults()
-        {
-            V33Status = ValidateRange(StandRegisters.V3_3Report, TestConfig.Vcc3V3Min, TestConfig.Vcc3V3Max);
-            V15Status = ValidateRange(StandRegisters.V1_5Report, TestConfig.Vcc1V5Min, TestConfig.Vcc1V5Max);
-            V11Status = ValidateRange(StandRegisters.V1_1Report, TestConfig.Vcc1V1Min, TestConfig.Vcc1V1Max);
-            CrStatus = ValidateRange(StandRegisters.CR2032Report, TestConfig.CR2032Min, TestConfig.CR2032Max);
-            CrCpuStatus = ValidateRange(StandRegisters.CR2032_CPUReport, TestConfig.CR2032CpuMin, TestConfig.CR2032CpuMax);
-        }
-
-        private ushort ValidateRange(double value, double min, double max)
-        {
-            if (value == 0) return 1; // Не проводился
-            return (value >= min && value <= max) ? (ushort)2 : (ushort)3;
-        }
 
 
 
-
-
-        private bool _isFirstFlashProgramming;
 
         #endregion VCC
         #region прошивка flash
+        private bool _isFirstFlashProgramming;
         public async Task<bool> StartProgrammingAsync(CancellationToken cancellationToken)
         {
             if (!TestConfig.IsFlashProgrammingEnabled)
@@ -3063,7 +3075,7 @@ namespace RTL.ViewModels
         private ushort _v15Status = 1;
         public ushort V15Status
         {
-            get => _v11Status;
+            get => _v15Status;
             set => SetAndNotify(ref _v15Status, value);
         }
 

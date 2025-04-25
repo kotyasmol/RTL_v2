@@ -1,11 +1,11 @@
 ﻿<UserControl x:Class="RTL.Views.RtlPoeView"
-	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-	xmlns:local="clr-namespace:RTL.Converters"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:RTL.Converters"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
-             MinWidth="1024"
-             MinHeight="768">
+             MinWidth="1024" MinHeight="768">
+
     <UserControl.Resources>
         <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
         <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
@@ -18,70 +18,132 @@
             <Setter Property="Background" Value="#B5E61D"/>
         </Style>
     </UserControl.Resources>
-    <Viewbox Stretch="Uniform">
-        <Grid Width="1920" Height="1080">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-            <!-- Верхняя часть: изображение + Expander -->
-            <DockPanel Grid.Row="0" LastChildFill="False" Margin="0">
-                <!-- Изображение -->
-                <Viewbox Stretch="Uniform" Margin="0,0,0,0">
-                    <Grid>
-                        <Image Source="/TFortisBoard;component/Resources/Images/PlateImages/RTL_POE.png" Stretch="Uniform" Margin="0,0,656,0" />
-                        <Canvas>
-                            <Rectangle Canvas.Left="20" Canvas.Top="7" Width="300" Height="80" 
-                                   Fill="Red" Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Верхняя часть по факту -->
+            <RowDefinition Height="*"/>
+            <!-- Нижняя часть растягивается -->
+        </Grid.RowDefinitions>
+
+
+        <!-- ВЕРХНЯЯ ЧАСТЬ -->
+        <Grid Grid.Row="0" Margin="0,0,0,128">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <!-- Картинка -->
+                <ColumnDefinition Width="1*"/>
+                <!-- Плашки T -->
+            </Grid.ColumnDefinitions>
+
+
+            <!-- Картинка с Canvas -->
+            <Grid Grid.Column="0">
+                <Viewbox Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top">
+                    <Grid Width="1684" Height="378">
+                        <!-- Размер оригинального изображения -->
+                        <Image Source="/TFortisBoard;component/Resources/Images/PlateImages/RTL_POE.png"
+                   Stretch="Fill" Margin="10,0,0,10"/>
+                        <Canvas IsHitTestVisible="False">
+                            <Rectangle Canvas.Left="530" Canvas.Top="44" Width="39" Height="32"
+                           Fill="Red" Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
                         </Canvas>
                     </Grid>
                 </Viewbox>
-                <!-- Expander -->
-                <Expander Header="Дополнительно" IsExpanded="True" Width="300" VerticalAlignment="Top">
-                    <StackPanel Margin="10,10,10,10">
-                        <TextBlock Text="Здесь можно что-то отобразить" FontSize="14"/>
-                        <!-- сюда можно вставить другие элементы -->
-                    </StackPanel>
-                </Expander>
-            </DockPanel>
-            <!-- Нижняя часть: логи и прогресс -->
-            <Grid Grid.Row="1" Margin="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="108*"/>
-                    <ColumnDefinition Width="367*"/>
-                    <ColumnDefinition Width="475*"/>
-                </Grid.ColumnDefinitions>
-                <!-- Левая колонка: логи -->
-                <StackPanel Grid.Column="0" Grid.ColumnSpan="2">
-                    <TextBlock Text="Логи" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
-                    <ListBox x:Name="LogListBox"
-                             ItemsSource="{Binding Logs}"
-                             VerticalAlignment="Stretch"
-                             HorizontalAlignment="Stretch"
-                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBox Text="{Binding Message}" 
-                                         Foreground="{Binding Color}" 
-                                         FontSize="14" FontWeight="Bold"
-                                         IsReadOnly="True"
-                                         BorderThickness="0"
-                                         Background="Transparent"
-                                         TextWrapping="NoWrap"/>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </StackPanel>
-                <!-- Правая колонка: прогресс и элементы -->
-                <StackPanel Grid.Column="2" Margin="20,0,0,0">
-                    <TextBlock Text="Прогресс" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
-                    <ProgressBar Minimum="0" Maximum="100"
-                                 Height="25"
-                                 Value="{Binding ProgressValue}"/>
-                    <!-- Здесь можно добавить другие элементы (кнопки, статусы и пр.) -->
-                </StackPanel>
             </Grid>
+
+
+
+
+
+
+            <!-- Панель управления T -->
+            <StackPanel Grid.Column="1" Margin="10" VerticalAlignment="Top">
+                <!-- Кнопка Подключение -->
+                <StackPanel Orientation="Horizontal" Margin="0,5">
+                    <Button Width="150" Height="30"
+                            Command="{Binding ConnectCommand}"
+                            ToolTip="Установка / прерывание связи со стендом"
+                            FontSize="12" FontWeight="Bold"
+                            Background="{Binding IsStandConnected, Converter={StaticResource BoolToColorConverter}}">
+                        <TextBlock Text="{Binding IsStandConnected, Converter={StaticResource BoolToTextConverter}}"
+                                   Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Кнопка Профиль -->
+                <StackPanel Orientation="Horizontal" Margin="0,5">
+                    <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
+                            Command="{Binding LoadTestProfileCommand}" ToolTip="Загрузка профиля тестирования">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Width="16" Height="16" CornerRadius="8"
+                                        Background="{Binding IsTestProfileLoaded, Converter={StaticResource BoolToColorConverter}}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <TextBlock Text="Профиль" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12" FontWeight="Bold"/>
+                </StackPanel>
+
+                <!-- Тут можно вставить кнопки: Сервер, Modbus, DUT, Run -->
+            </StackPanel>
         </Grid>
-    </Viewbox>
+
+        <!-- НИЖНЯЯ ЧАСТЬ -->
+        <!-- НИЖНЯЯ ЧАСТЬ -->
+        <Grid Grid.Row="1" Margin="10,-100,10,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Логи -->
+            <StackPanel Grid.Column="0" Margin="0,0,10,0" VerticalAlignment="Top">
+                <ListBox x:Name="LogListBox" ItemsSource="{Binding Logs}" Height="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBox Text="{Binding Message}"
+                                     Foreground="{Binding Color}"
+                                     FontSize="14" FontWeight="Bold"
+                                     IsReadOnly="True"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     TextWrapping="NoWrap"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+
+            <!-- Визуальные блоки -->
+            <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
+                                VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="52V" FontWeight="Black" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding StandRegisters.V52Display}"
+                                       FontSize="22" FontWeight="Black" Foreground="White"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding TestConfig.K5_52V_Min}" FontSize="12" Foreground="White"/>
+                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.K5_52V_Max}" FontSize="12" Foreground="White"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </WrapPanel>
+        </Grid>
+    </Grid>
 </UserControl>

@@ -1,84 +1,128 @@
 ﻿using Modbus.Device;
 using RTL.Logger;
 using System;
-using System.Collections.Generic;
 using System.IO.Ports;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace RTL.Services
 {
     public class ModbusService
     {
-        /* private IModbusMaster _modbusMaster;
-         private SerialPort _serialPort;
+        private SerialPort _serialPort;
+        private IModbusSerialMaster _modbusMaster;
+        private readonly Loggers _logger;
+        private readonly Func<string> _getPortName;
+        private bool _isConnected;
 
-         public bool IsConnected => _modbusMaster != null;
+        public bool IsConnected => _isConnected;
 
-         public async Task<bool> TryInitializeAsync(string portName, int baudRate = 9600, Parity parity = Parity.None, int dataBits = 8, StopBits stopBits = StopBits.One)
-         {
-             try
-             {
-                 _serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits);
-                 _serialPort.Open();
-                 var adapter = new SerialPortAdapter(_serialPort);
-                 _modbusMaster = ModbusSerialMaster.CreateRtu(adapter);
-                 return true;
-             }
-             catch (Exception ex)
-             {
-                 _modbusMaster = null;
-                 _serialPort = null;
-                 Loggers.LogToUser(LogLevel.Error, $"Не удалось подключиться к {portName}: {ex.Message}");
-                 return false;
-             }
-         }
+        public ModbusService(Loggers logger, Func<string> getPortName)
+        {
+            _logger = logger;
+            _getPortName = getPortName;
+        }
 
-         public async Task<ushort[]> ReadRegistersWithRetryAsync(byte slaveId, ushort startAddress, ushort numRegisters, int retryCount = 3)
-         {
-             for (int i = 0; i < retryCount; i++)
-             {
-                 try
-                 {
-                     return _modbusMaster.ReadHoldingRegisters(slaveId, startAddress, numRegisters);
-                 }
-                 catch
-                 {
-                     await Task.Delay(200);
-                 }
-             }
+        public async Task<bool> ConnectAsync()
+        {
+            Disconnect();
 
-             Loggers.LogToUser(LogLevel.Error, $"Ошибка чтения регистров с адреса {startAddress} (устройство {slaveId})");
-             return null;
-         }
+            string portName = _getPortName();
 
-         public async Task<bool> WriteSingleRegisterWithRetryAsync(byte slaveId, ushort registerAddress, ushort value, int retryCount = 3)
-         {
-             for (int i = 0; i < retryCount; i++)
-             {
-                 try
-                 {
-                     _modbusMaster.WriteSingleRegister(slaveId, registerAddress, value);
-                     return true;
-                 }
-                 catch
-                 {
-                     await Task.Delay(200);
-                 }
-             }
+            if (string.IsNullOrWhiteSpace(portName))
+            {
+                _logger.LogToUser("Ошибка: COM-порт не указан.", Loggers.LogLevel.Error);
+                return false;
+            }
 
-             Loggers.LogToUser( $"Ошибка записи регистра {registerAddress} (устройство {slaveId})", LogLevel.Error);
-             return false;
-         }
+            try
+            {
+                _logger.LogToUser($"Попытка открыть {portName}...", Loggers.LogLevel.Info);
 
-         public void Disconnect()
-         {
-             _modbusMaster?.Dispose();
-             _serialPort?.Close();
-             _modbusMaster = null;
-             _serialPort = null;
-         }
-     */
+                _serialPort = new SerialPort(portName, 9600, Parity.None, 8, StopBits.One)
+                {
+                    ReadTimeout = 3000,
+                    WriteTimeout = 3000
+                };
+
+                _serialPort.Open();
+                _modbusMaster = ModbusSerialMaster.CreateRtu(_serialPort);
+                _modbusMaster.Transport.Retries = 3;
+                _isConnected = true;
+
+                _logger.LogToUser($"Порт {portName} успешно открыт.", Loggers.LogLevel.Success);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка подключения к {portName}: {ex.Message}", Loggers.LogLevel.Error);
+                return false;
+            }
+        }
+
+        public async Task<bool> WriteSingleRegisterAsync(ushort register, ushort value)
+        {
+            if (!_isConnected)
+            {
+                _logger.LogToUser("Modbus не подключён. Попытка подключения...", Loggers.LogLevel.Warning);
+                if (!await ConnectAsync())
+                    return false;
+            }
+
+            try
+            {
+                _logger.Log($"Запись: {register} = {value}", Loggers.LogLevel.Debug);
+                _modbusMaster.WriteSingleRegister(1, register, value);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка записи в регистр {register}: {ex.Message}", Loggers.LogLevel.Error);
+                return false;
+            }
+        }
+
+        public async Task<ushort[]> ReadRegistersAsync(ushort startAddress, ushort count)
+        {
+            if (!_isConnected)
+            {
+                _logger.LogToUser("Modbus не подключён. Попытка подключения...", Loggers.LogLevel.Warning);
+                if (!await ConnectAsync())
+                    return null;
+            }
+
+            try
+            {
+                return _modbusMaster.ReadHoldingRegisters(1, startAddress, count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка чтения регистров: {ex.Message}", Loggers.LogLevel.Error);
+                return null;
+            }
+        }
+
+        public void Disconnect()
+        {
+            try
+            {
+                _modbusMaster = null;
+
+                if (_serialPort != null)
+                {
+                    if (_serialPort.IsOpen)
+                        _serialPort.Close();
+                    _serialPort.Dispose();
+                    _serialPort = null;
+
+                    _logger.LogToUser("COM-порт закрыт.", Loggers.LogLevel.Info);
+                }
+
+                _isConnected = false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при отключении: {ex.Message}", Loggers.LogLevel.Error);
+            }
+        }
     }
 }

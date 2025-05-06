@@ -1,41 +1,221 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using Stylet;
+using System.Windows.Input;
+using RTL.Logger;
+using RTL.Services;
 using System.Threading.Tasks;
-using Stylet;
-
+using System.Windows;
+using System.Collections.ObjectModel;
+using RTL.Commands;
+using StyletIoC;
+using System.Collections.Specialized;
+using System.Windows.Threading;
+using System.Windows.Controls;
+using System.ComponentModel;
+using RTL.Models;
 namespace RTL.ViewModels
 {
     public class RtlPoeViewModel : Screen
     {
-        private int _progress;
-        public int Progress
+        public event PropertyChangedEventHandler PropertyChanged;
+
+
+        private readonly Loggers _logger;
+        public ObservableCollection<LogEntry> Logs => _logger.LogMessages;
+        private ListBox _logListBox;
+        public void SetLogListBox(ListBox listBox)
         {
-            get => _progress;
-            set => SetAndNotify(ref _progress, value);
+            _logListBox = listBox;
+            if (_logListBox != null)
+            {
+                Logs.CollectionChanged += ScrollToEnd;
+            }
         }
 
-        private BindableCollection<string> _logs;
-        public BindableCollection<string> Logs
+        private readonly ModbusService _modbusService;
+        public PoeRegistersModel PoeRegisters { get; } = new PoeRegistersModel();
+        private CancellationTokenSource _monitoringCancellationTokenSource;
+
+        public ICommand ConnectCommand { get; }
+
+        private bool _isStandConnected;
+        public bool IsStandConnected
         {
-            get => _logs;
-            set => SetAndNotify(ref _logs, value);
+            get => _isStandConnected;
+            set => SetAndNotify(ref _isStandConnected, value);
         }
 
-        private string _register52V;
-        public string Register52V
+        public RtlPoeViewModel([Inject(Key = "POE")] Loggers logger)
         {
-            get => _register52V;
-            set => SetAndNotify(ref _register52V, value);
+            _logger = logger;
+            _modbusService = new ModbusService(_logger, () => RTL.Properties.Settings.Default.ComPoe);
+            ConnectCommand = new RelayCommand(async () => await ToggleConnectionAsync());
         }
 
-        // Повторить для остальных регистров
 
-        public RtlPoeViewModel()
+
+
+
+
+        private void ScrollToEnd(object sender, NotifyCollectionChangedEventArgs e)
         {
-            Logs = new BindableCollection<string>();
-            // Инициализация регистров
+            if (_logListBox != null && _logListBox.Items.Count > 0)
+            {
+                _logListBox.Dispatcher.BeginInvoke(() =>
+                {
+                    _logListBox.ScrollIntoView(_logListBox.Items[_logListBox.Items.Count - 1]);
+                }, DispatcherPriority.Background);
+            }
+        }
+        private async Task ToggleConnectionAsync()
+        {
+            if (IsStandConnected)
+            {
+                _modbusService.Disconnect();
+                IsStandConnected = false;
+                _logger.LogToUser("Отключено от стенда POE.", Loggers.LogLevel.Warning);
+            }
+            else
+            {
+                bool result = await _modbusService.ConnectAsync();
+                if (result)
+                {
+                    IsStandConnected = true;
+                    _logger.LogToUser("Успешное подключение к стенду POE.", Loggers.LogLevel.Success);
+                    _ = MonitorPoeAsync(); // запускаем без ожидания
+                }
+                else
+                {
+                    _logger.LogToUser("Ошибка подключения к стенду POE.", Loggers.LogLevel.Error);
+                }
+            }
+        }
+
+
+        private async Task MonitorPoeAsync()
+        {
+            while (IsStandConnected)
+            {
+                try
+                {
+                    var registers = await _modbusService.ReadRegistersAsync(2400, 111);
+
+                    if (registers == null)
+                    {
+                        _logger.LogToUser("Ошибка при чтении регистров. Остановка мониторинга.", Loggers.LogLevel.Error);
+                        IsStandConnected = false;
+                        return;
+                    }
+
+                    PoeRegisters.StandSerialNumber = registers[0]; // серийный номер
+                    PoeRegisters.RunButton = registers[1]; //  запуск теста
+                    PoeRegisters.NextButton = registers[2];
+                    PoeRegisters.Enable52V = registers[3]; // подача питания
+                    PoeRegisters.Voltage3V3Meas = registers[4]; // смотрим на плашку
+
+                    PoeRegisters.PowerGood1AChannel1 = registers[5]; 
+                    PoeRegisters.PowerGood1BChannel2 = registers[6];
+                    PoeRegisters.PowerGood2AChannel3 = registers[7];
+                    PoeRegisters.PowerGood2BChannel4 = registers[8];
+                    PoeRegisters.PowerGood3AChannel5 = registers[9];
+                    PoeRegisters.PowerGood3BChannel6 = registers[10];
+                    PoeRegisters.PowerGood4AChannel7 = registers[11];
+                    PoeRegisters.PowerGood4BChannel8 = registers[12];
+                    PoeRegisters.PowerGood5AChannel9 = registers[13];
+                    PoeRegisters.PowerGood5BChannel10 = registers[14];
+                    PoeRegisters.PowerGood6AChannel11 = registers[15];
+                    PoeRegisters.PowerGood6BChannel12 = registers[16];
+                    PoeRegisters.PowerGood7AChannel13 = registers[17];
+                    PoeRegisters.PowerGood7BChannel14 = registers[18];
+                    PoeRegisters.PowerGood8AChannel15 = registers[19];
+                    PoeRegisters.PowerGood8BChannel16 = registers[20];
+
+                    PoeRegisters.White1AChannel1 = registers[21]; //белый 
+                    PoeRegisters.White1BChannel2 = registers[22];
+                    PoeRegisters.White2AChannel3 = registers[23];
+                    PoeRegisters.White2BChannel4 = registers[24];
+                    PoeRegisters.White3AChannel5 = registers[25];
+                    PoeRegisters.White3BChannel6 = registers[26];
+                    PoeRegisters.White4AChannel7 = registers[27];
+                    PoeRegisters.White4BChannel8 = registers[28];
+                    PoeRegisters.White5AChannel9 = registers[29];
+                    PoeRegisters.White5BChannel10 = registers[30];
+                    PoeRegisters.White6AChannel11 = registers[31];
+                    PoeRegisters.White6BChannel12 = registers[32];
+                    PoeRegisters.White7AChannel13 = registers[33];
+                    PoeRegisters.White7BChannel14 = registers[34];
+                    PoeRegisters.White8AChannel15 = registers[35];
+                    PoeRegisters.White8BChannel16 = registers[36];
+
+                    PoeRegisters.Red1AChannel1 = registers[37]; // красный
+                    PoeRegisters.Red1BChannel2 = registers[38];
+                    PoeRegisters.Red2AChannel3 = registers[39];
+                    PoeRegisters.Red2BChannel4 = registers[40];
+                    PoeRegisters.Red3AChannel5 = registers[41];
+                    PoeRegisters.Red3BChannel6 = registers[42];
+                    PoeRegisters.Red4AChannel7 = registers[43];
+                    PoeRegisters.Red4BChannel8 = registers[44];
+                    PoeRegisters.Red5AChannel9 = registers[45];
+                    PoeRegisters.Red5BChannel10 = registers[46];
+                    PoeRegisters.Red6AChannel11 = registers[47];
+                    PoeRegisters.Red6BChannel12 = registers[48];
+                    PoeRegisters.Red7AChannel13 = registers[49];
+                    PoeRegisters.Red7BChannel14 = registers[50];
+                    PoeRegisters.Red8AChannel15 = registers[51];
+                    PoeRegisters.Red8BChannel16 = registers[52];
+
+                    PoeRegisters.Green1AChannel1 = registers[53]; // зеленый
+                    PoeRegisters.Green1BChannel2 = registers[54];
+                    PoeRegisters.Green2AChannel3 = registers[55];
+                    PoeRegisters.Green2BChannel4 = registers[56];
+                    PoeRegisters.Green3AChannel5 = registers[57];
+                    PoeRegisters.Green3BChannel6 = registers[58];
+                    PoeRegisters.Green4AChannel7 = registers[59];
+                    PoeRegisters.Green4BChannel8 = registers[60];
+                    PoeRegisters.Green5AChannel9 = registers[61];
+                    PoeRegisters.Green5BChannel10 = registers[62];
+                    PoeRegisters.Green6AChannel11 = registers[63];
+                    PoeRegisters.Green6BChannel12 = registers[64];
+                    PoeRegisters.Green7AChannel13 = registers[65];
+                    PoeRegisters.Green7BChannel14 = registers[66];
+                    PoeRegisters.Green8AChannel15 = registers[67];
+                    PoeRegisters.Green8BChannel16 = registers[68];
+
+                    PoeRegisters.Blue1AChannel1 = registers[69]; // голубой 
+                    PoeRegisters.Blue1BChannel2 = registers[70];
+                    PoeRegisters.Blue2AChannel3 = registers[71];
+                    PoeRegisters.Blue2BChannel4 = registers[72];
+                    PoeRegisters.Blue3AChannel5 = registers[73];
+                    PoeRegisters.Blue3BChannel6 = registers[74];
+                    PoeRegisters.Blue4AChannel7 = registers[75];
+                    PoeRegisters.Blue4BChannel8 = registers[76];
+                    PoeRegisters.Blue5AChannel9 = registers[77];
+                    PoeRegisters.Blue5BChannel10 = registers[78];
+                    PoeRegisters.Blue6AChannel11 = registers[79];
+                    PoeRegisters.Blue6BChannel12 = registers[80];
+                    PoeRegisters.Blue7AChannel13 = registers[81];
+                    PoeRegisters.Blue7BChannel14 = registers[82];
+                    PoeRegisters.Blue8AChannel15 = registers[83];
+                    PoeRegisters.Blue8BChannel16 = registers[84];
+
+                    PoeRegisters.PoeBank = registers[85];
+                    PoeRegisters.PoeId = registers[86];
+                    PoeRegisters.PoePortEn = registers[87];
+                    PoeRegisters.PoeInt = registers[88];
+                    PoeRegisters.PoeReset = registers[89]; // reset
+                    PoeRegisters.PoeMode = registers[90];
+                    PoeRegisters.Voltage3V3MeasCalibr = registers[91];
+                    PoeRegisters.Voltage3V3Enable = registers[92]; // подача 3.3
+                    PoeRegisters.UartTestStart = registers[93]; // 1 = start
+                    PoeRegisters.UartTestResult = registers[94]; // 0 - stop. 1 - running. 2 - ok. 3 - fail.
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.Log($"Ошибка при чтении регистров POE: {ex.Message}", Loggers.LogLevel.Error);
+                }
+
+                await Task.Delay(1000); // частота опроса
+            }
         }
     }
 }

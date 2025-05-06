@@ -31,10 +31,8 @@
         <!-- ВЕРХНЯЯ ЧАСТЬ -->
         <Grid Grid.Row="0" Margin="0,0,0,128">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="*"/>
                 <!-- Картинка -->
-                <ColumnDefinition Width="1*"/>
-                <!-- Плашки T -->
             </Grid.ColumnDefinitions>
 
 
@@ -44,9 +42,9 @@
                     <Grid Width="1684" Height="378">
                         <!-- Размер оригинального изображения -->
                         <Image Source="/TFortisBoard;component/Resources/Images/PlateImages/RTL_POE.png"
-                   Stretch="Fill" Margin="10,0,0,10"/>
+                   Stretch="Fill" Margin="10,10,10,10"/>
                         <Canvas IsHitTestVisible="False">
-                            <Rectangle Canvas.Left="530" Canvas.Top="44" Width="39" Height="32"
+                            <Rectangle Canvas.Left="523" Canvas.Top="56" Width="39" Height="32"
                            Fill="Red" Opacity="0.8" Stroke="Black" StrokeThickness="2"/>
                         </Canvas>
                     </Grid>
@@ -58,38 +56,7 @@
 
 
 
-            <!-- Панель управления T -->
-            <StackPanel Grid.Column="1" Margin="10" VerticalAlignment="Top">
-                <!-- Кнопка Подключение -->
-                <StackPanel Orientation="Horizontal" Margin="0,5">
-                    <Button Width="150" Height="30"
-                            Command="{Binding ConnectCommand}"
-                            ToolTip="Установка / прерывание связи со стендом"
-                            FontSize="12" FontWeight="Bold"
-                            Background="{Binding IsStandConnected, Converter={StaticResource BoolToColorConverter}}">
-                        <TextBlock Text="{Binding IsStandConnected, Converter={StaticResource BoolToTextConverter}}"
-                                   Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Button>
-                </StackPanel>
 
-                <!-- Кнопка Профиль -->
-                <StackPanel Orientation="Horizontal" Margin="0,5">
-                    <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
-                            Command="{Binding LoadTestProfileCommand}" ToolTip="Загрузка профиля тестирования">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border Width="16" Height="16" CornerRadius="8"
-                                        Background="{Binding IsTestProfileLoaded, Converter={StaticResource BoolToColorConverter}}">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                            </ControlTemplate>
-                        </Button.Template>
-                    </Button>
-                    <TextBlock Text="Профиль" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12" FontWeight="Bold"/>
-                </StackPanel>
-
-                <!-- Тут можно вставить кнопки: Сервер, Modbus, DUT, Run -->
-            </StackPanel>
         </Grid>
 
         <!-- НИЖНЯЯ ЧАСТЬ -->
@@ -101,27 +68,54 @@
             </Grid.ColumnDefinitions>
 
             <!-- Логи -->
-            <StackPanel Grid.Column="0" Margin="0,0,10,0" VerticalAlignment="Top">
-                <ListBox x:Name="LogListBox" ItemsSource="{Binding Logs}" Height="Auto"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <!-- Верхняя часть, например кнопки/состояния -->
+                    <RowDefinition Height="*" />
+                    <!-- Лог занимает всё оставшееся пространство -->
+                </Grid.RowDefinitions>
+
+                <!-- Верхняя часть для кнопок/состояния, если нужно -->
+                <StackPanel Grid.Row="0" VerticalAlignment="Top">
+                    <!-- Тут твои кнопки и элементы интерфейса -->
+                </StackPanel>
+
+                <!-- ListBox для логов, растягивается на оставшееся пространство -->
+                <ListBox x:Name="LogListBox"
+             Grid.Row="1"
+             ItemsSource="{Binding Logs}"
+             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+             ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <TextBox Text="{Binding Message}"
-                                     Foreground="{Binding Color}"
-                                     FontSize="14" FontWeight="Bold"
-                                     IsReadOnly="True"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     TextWrapping="NoWrap"/>
+                            <TextBlock Text="{Binding Message}"
+                           Foreground="{Binding Color}"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           TextWrapping="NoWrap"
+                           Background="Transparent"
+                           Margin="2"/>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
-            </StackPanel>
+            </Grid>
 
-            <!-- Визуальные блоки -->
-            <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
-                <Border Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="5" Padding="10">
+
+
+            <Grid Grid.Column="1" VerticalAlignment="Top">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Плашка 52V -->
+                    <ColumnDefinition Width="10"/>
+                    <!-- Отступ -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Панель управления -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Плашка 52V -->
+                <Border Grid.Column="2" Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="0,0,0,0" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -130,11 +124,11 @@
                         <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
                                 VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="52V" FontWeight="Black" Foreground="White"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="{Binding StandRegisters.V52Display}"
-                                       FontSize="22" FontWeight="Black" Foreground="White"/>
+                                        FontSize="22" FontWeight="Black" Foreground="White"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="{Binding TestConfig.K5_52V_Min}" FontSize="12" Foreground="White"/>
                                 <TextBlock Text=" - " FontSize="12" Foreground="White"/>
@@ -143,7 +137,39 @@
                         </StackPanel>
                     </Grid>
                 </Border>
-            </WrapPanel>
+
+                <!-- Панель управления T -->
+                <StackPanel Grid.Column="0" Margin="10,0,0,0" VerticalAlignment="Top">
+                    <!-- Кнопка Подключение -->
+                    <StackPanel Orientation="Horizontal" Margin="0,5">
+                        <Button Width="150" Height="30"
+                                Command="{Binding ConnectCommand}"
+                                ToolTip="Установка / прерывание связи со стендом"
+                                FontSize="12" FontWeight="Bold"
+                                Background="{Binding IsStandConnected, Converter={StaticResource BoolToColorConverter}}">
+                            <TextBlock Text="{Binding IsStandConnected, Converter={StaticResource BoolToTextConverter}}"
+                           Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Кнопка Профиль -->
+                    <StackPanel Orientation="Horizontal" Margin="0,5">
+                        <Button Width="16" Height="16" Style="{StaticResource RoundButtonStyle}"
+                                Command="{Binding LoadTestProfileCommand}" ToolTip="Загрузка профиля тестирования">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Width="16" Height="16" CornerRadius="8"
+                                            Background="{Binding IsTestProfileLoaded, Converter={StaticResource BoolToColorConverter}}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <TextBlock Text="Профиль" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
+                    <!-- Тут можно вставить кнопки: Сервер, Modbus, DUT, Run -->
+                </StackPanel>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

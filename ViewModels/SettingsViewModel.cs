@@ -171,6 +171,17 @@ namespace RTL.ViewModels
             }
         }
 
+        private string _selectedComPortPOE;
+        public string SelectedComPortPOE
+        {
+            get => _selectedComPortPOE;
+            set
+            {
+                SetAndNotify(ref _selectedComPortPOE, value);
+                Properties.Settings.Default.ComPoe = value;
+                Properties.Settings.Default.Save();
+            }
+        }
 
         public List<string> Themes { get; set; } = new List<string> { "Светлая", "Темная" };
 
@@ -223,17 +234,7 @@ namespace RTL.ViewModels
 
             SelectedComPort = Properties.Settings.Default.ComSW;
             SelectedDutPort = Properties.Settings.Default.DutSW;
-
-
-
-
-
-
-
-
-
-
-
+            SelectedComPortPOE = Properties.Settings.Default.ComPoe;
             SelectRtlPoeProfileCommand = new RelayCommand(SelectRtlPoeProfile);
 
         }
@@ -339,15 +340,21 @@ namespace RTL.ViewModels
 
         public void LoadAvailablePorts()
         {
-            AvailablePorts = new ObservableCollection<string>(SerialPort.GetPortNames().ToList());
+            var ports = SerialPort.GetPortNames().ToList();
+            AvailablePorts = new ObservableCollection<string>(ports);
 
-            // Восстанавливаем сохранённые порты
-            if (!string.IsNullOrEmpty(Properties.Settings.Default.ComSW) && AvailablePorts.Contains(Properties.Settings.Default.ComSW))
+            // SW
+            if (!string.IsNullOrEmpty(Properties.Settings.Default.ComSW) && ports.Contains(Properties.Settings.Default.ComSW))
                 SelectedComPort = Properties.Settings.Default.ComSW;
 
-            if (!string.IsNullOrEmpty(Properties.Settings.Default.DutSW) && AvailablePorts.Contains(Properties.Settings.Default.DutSW))
+            if (!string.IsNullOrEmpty(Properties.Settings.Default.DutSW) && ports.Contains(Properties.Settings.Default.DutSW))
                 SelectedDutPort = Properties.Settings.Default.DutSW;
+
+            // POE
+            if (!string.IsNullOrEmpty(Properties.Settings.Default.ComPoe) && ports.Contains(Properties.Settings.Default.ComPoe))
+                SelectedComPortPOE = Properties.Settings.Default.ComPoe;
         }
+
 
     }
 }

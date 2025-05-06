@@ -49,7 +49,8 @@ namespace RTL.ViewModels
 
         #region логи
         private readonly Loggers _logger;
-        public ObservableCollection<LogEntry> Logs => Loggers.LogMessages;
+        public ObservableCollection<LogEntry> Logs => _logger.LogMessages;
+
         private ListBox _logListBox;
         public void SetLogListBox(ListBox listBox)
         {
@@ -266,7 +267,7 @@ namespace RTL.ViewModels
                 $"- Доступность устройства\n",
                 Loggers.LogLevel.Error
             );
-
+            await CloseConnections();
             return false;
         }
 

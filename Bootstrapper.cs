@@ -3,32 +3,35 @@ using StyletIoC;
 using RTL.ViewModels;
 using RTL.Logger;
 using RTL.Properties;
+using System.IO;
 
 namespace RTL
 {
-    public class Bootstrapper : Stylet.Bootstrapper<MainViewModel>
+    public class Bootstrapper : Bootstrapper<MainViewModel>
     {
         protected override void ConfigureIoC(IStyletIoCBuilder builder)
         {
-            // Получаем путь к логам из настроек
-            string logDirectory = Settings.Default.LogFolderPath;
-            if (string.IsNullOrWhiteSpace(logDirectory))
-            {
-                logDirectory = "C:/Logs"; // Значение по умолчанию
-            }
+            string baseLogDir = Settings.Default.LogFolderPath;
+            if (string.IsNullOrWhiteSpace(baseLogDir))
+                baseLogDir = "C:/TFortisBoardLogs";
 
-            // Создаём логгер
-            var logger = new Loggers(logDirectory);
-            builder.Bind<Loggers>().ToInstance(logger);
+            // Создаём разные логгеры
+            var systemLogger = new Loggers(Path.Combine(baseLogDir, "SystemLogs"));
+            var swLogger = new Loggers(Path.Combine(baseLogDir, "SWLogs"));
+            var poeLogger = new Loggers(Path.Combine(baseLogDir, "PoeLogs"));
 
-            // Регистрируем ViewModels
-            builder.Bind<MainViewModel>().ToSelf();
+            // Регистрируем их отдельно
+            builder.Bind<Loggers>().ToInstance(systemLogger); // По умолчанию
+            builder.Bind<Loggers>().WithKey("SW").ToInstance(swLogger);
+            builder.Bind<Loggers>().WithKey("POE").ToInstance(poeLogger);
+
+            // ViewModels — обычные бинды
             builder.Bind<RtlSwViewModel>().ToSelf();
             builder.Bind<RtlPoeViewModel>().ToSelf();
             builder.Bind<SettingsViewModel>().ToSelf();
+            builder.Bind<MainViewModel>().ToSelf();
 
-            // Логируем успешную инициализацию
-            logger.Log("Bootstrapper успешно запущен", Loggers.LogLevel.Success);
+            systemLogger.Log("Bootstrapper успешно запущен", Loggers.LogLevel.Success);
         }
     }
 }

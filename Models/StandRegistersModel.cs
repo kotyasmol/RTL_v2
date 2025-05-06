@@ -87,14 +87,6 @@ namespace RTL.Models
             set => SetAndNotify(ref _bootOut, value);
         }
 
-
-
-
-
-
-
-
-
         private ushort _v52;
         public ushort V52
         {
@@ -690,12 +682,5 @@ namespace RTL.Models
             get => _rs485RxOk;
             set => SetAndNotify(ref _rs485RxOk, value);
         }
-
-
-
-
-
-
-
     }
 }

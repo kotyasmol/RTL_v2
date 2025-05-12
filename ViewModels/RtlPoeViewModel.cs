@@ -12,6 +12,8 @@ using System.Windows.Threading;
 using System.Windows.Controls;
 using System.ComponentModel;
 using RTL.Models;
+using System.IO;
+using Newtonsoft.Json;
 namespace RTL.ViewModels
 {
     public class RtlPoeViewModel : Screen
@@ -42,6 +44,19 @@ namespace RTL.ViewModels
         {
             get => _isStandConnected;
             set => SetAndNotify(ref _isStandConnected, value);
+        }
+        private PoeTestProfileModel _testConfig;
+        public PoeTestProfileModel TestConfig
+        {
+            get => _testConfig;
+            set => SetAndNotify(ref _testConfig, value);
+        }
+
+        private bool _isTestProfileLoaded;
+        public bool IsTestProfileLoaded
+        {
+            get => _isTestProfileLoaded;
+            set => SetAndNotify(ref _isTestProfileLoaded, value);
         }
 
         private bool _isPoeTestRunning = false;
@@ -84,9 +99,25 @@ namespace RTL.ViewModels
                 bool result = await _modbusService.ConnectAsync();
                 if (result)
                 {
+                    // Загружаем профиль перед стартом мониторинга
+                    string profilePath = Properties.Settings.Default.RtlPoeProfilePath;
+                    if (!File.Exists(profilePath))
+                    {
+                        _logger.LogToUser($"Файл профиля тестирования не найден: {profilePath}", Loggers.LogLevel.Error);
+                        return;
+                    }
+
+                    bool profileLoaded = await TryLoadTestProfileAsync();
+                    if (!profileLoaded)
+                    {
+                        _logger.LogToUser("Подключение отменено: не удалось загрузить профиль тестирования.", Loggers.LogLevel.Error);
+                        return;
+                    }
+
                     IsStandConnected = true;
                     _logger.LogToUser("Успешное подключение к стенду POE.", Loggers.LogLevel.Success);
-                    _ = MonitorPoeAsync(); // запускаем без ожидания
+
+                    _ = MonitorPoeAsync(); // запускаем мониторинг без ожидания
                 }
                 else
                 {
@@ -94,6 +125,62 @@ namespace RTL.ViewModels
                 }
             }
         }
+
+        private async Task<bool> TryLoadTestProfileAsync()
+        {
+            string testProfilePath = Properties.Settings.Default.RtlPoeProfilePath;
+
+            try
+            {
+                if (!File.Exists(testProfilePath))
+                {
+                    TestConfig = new PoeTestProfileModel(); // создаём заглушку, чтобы не было null
+                    IsTestProfileLoaded = false;
+                    _logger.LogToUser($"Файл профиля тестирования не найден: {testProfilePath}", Loggers.LogLevel.Warning);
+                    return false;
+                }
+
+                string json = await File.ReadAllTextAsync(testProfilePath);
+                var parsedProfile = JsonConvert.DeserializeObject<PoeTestProfileModel>(json);
+
+                if (parsedProfile == null)
+                {
+                    TestConfig = new PoeTestProfileModel();
+                    IsTestProfileLoaded = false;
+                    _logger.LogToUser($"Ошибка при чтении профиля: десериализация вернула null.", Loggers.LogLevel.Error);
+                    return false;
+                }
+
+                // Проверка имени модели
+                if (!string.Equals(parsedProfile.ModelName, "RTL_POE", StringComparison.Ordinal))
+                {
+                    TestConfig = new PoeTestProfileModel();
+                    IsTestProfileLoaded = false;
+                    _logger.LogToUser($"Загружен профиль не для RTL_POE: найдено '{parsedProfile.ModelName}'. Пожалуйста, выберите корректный профиль.", Loggers.LogLevel.Error);
+                    return false;
+                }
+
+                TestConfig = parsedProfile;
+                IsTestProfileLoaded = true;
+                _logger.LogToUser($"Профиль тестирования успешно загружен: {testProfilePath}", Loggers.LogLevel.Success);
+                return true;
+            }
+            catch (JsonException ex)
+            {
+                TestConfig = new PoeTestProfileModel();
+                IsTestProfileLoaded = false;
+                _logger.LogToUser($"Ошибка при разборе JSON профиля: {ex.Message}", Loggers.LogLevel.Error);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                TestConfig = new PoeTestProfileModel();
+                IsTestProfileLoaded = false;
+                _logger.LogToUser($"Общая ошибка при загрузке профиля: {ex.Message}", Loggers.LogLevel.Error);
+                return false;
+            }
+        }
+
 
 
         private async Task MonitorPoeAsync()
@@ -256,8 +343,8 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест запущен.", Loggers.LogLevel.Info);
 
-                // === Подтест 1 ===
-                if (TestConfig.IsTest1Required)
+                // === Подтест 1 ===FlashFirmwareAuto
+                if (TestConfig.FlashFirmwareAuto)
                 {
                     _logger.LogToUser("Подтест 1: запуск...", Loggers.LogLevel.Info);
                     if (!await RunPoeSubTest1Async(token)) return;
@@ -269,7 +356,7 @@ namespace RTL.ViewModels
                 }
 
                 // === Подтест 2 ===
-                if (TestConfig.IsTest2Required)
+                if (TestConfig.McuFirmwareAuto)
                 {
                     _logger.LogToUser("Подтест 2: запуск...", Loggers.LogLevel.Info);
                     if (!await RunPoeSubTest2Async(token)) return;
@@ -281,7 +368,7 @@ namespace RTL.ViewModels
                 }
 
                 // === Подтест 3 ===
-                if (TestConfig.IsTest3Required)
+                if (TestConfig.FlashFirmwareAuto)
                 {
                     _logger.LogToUser("Подтест 3: запуск...", Loggers.LogLevel.Info);
                     if (!await RunPoeSubTest3Async(token)) return;

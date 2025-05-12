@@ -80,7 +80,6 @@ C:\Users\user\Desktop\RTL_v2\obj\Debug\net8.0-windows\RTL.GeneratedMSBuildEditor
 C:\Users\user\Desktop\RTL_v2\obj\Debug\net8.0-windows\RTL.AssemblyInfoInputs.cache
 C:\Users\user\Desktop\RTL_v2\obj\Debug\net8.0-windows\RTL.AssemblyInfo.cs
 C:\Users\user\Desktop\RTL_v2\obj\Debug\net8.0-windows\RTL.csproj.CoreCompileInputs.cache
-C:\Users\user\Desktop\RTL_v2\obj\Debug\net8.0-windows\RTL.sourcelink.json
 C:\Users\user\Desktop\RTL_v2\obj\Debug\net8.0-windows\RTL.csproj.Up2Date
 C:\Users\user\Desktop\RTL_v2\obj\Debug\net8.0-windows\TFortisBoard.dll
 C:\Users\user\Desktop\RTL_v2\obj\Debug\net8.0-windows\refint\TFortisBoard.dll

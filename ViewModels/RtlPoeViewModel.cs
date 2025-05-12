@@ -44,6 +44,11 @@ namespace RTL.ViewModels
             set => SetAndNotify(ref _isStandConnected, value);
         }
 
+        private bool _isPoeTestRunning = false;
+        private bool _canStartTest = true;
+        private CancellationTokenSource _testCts;
+
+
         public RtlPoeViewModel([Inject(Key = "POE")] Loggers logger)
         {
             _logger = logger;
@@ -108,6 +113,30 @@ namespace RTL.ViewModels
 
                     PoeRegisters.StandSerialNumber = registers[0]; // серийный номер
                     PoeRegisters.RunButton = registers[1]; //  запуск теста
+
+                    if (PoeRegisters.RunButton == 1)
+                    {
+                        if (!_isPoeTestRunning && _canStartTest)
+                        {
+                            _logger.LogToUser("Тумблер RUN включен. Запуск теста...", Loggers.LogLevel.Info);
+                            _canStartTest = false; // блокируем повторный запуск до сброса тумблера
+                            _testCts = new CancellationTokenSource();
+                            _ = StartPoeTestAsync(_testCts.Token); // запускаем без ожидания
+                        }
+                    }
+                    else // RunButton == 0
+                    {
+                        if (_isPoeTestRunning)
+                        {
+                            _logger.LogToUser("Тумблер RUN выключен. Прерывание теста.", Loggers.LogLevel.Warning);
+                            _testCts?.Cancel();
+                        }
+                        else
+                        {
+                            _canStartTest = true; // пользователь сбросил тумблер — разрешить новый запуск
+                        }
+                    }
+
                     PoeRegisters.NextButton = registers[2];
                     PoeRegisters.Enable52V = registers[3]; // подача питания
                     PoeRegisters.Voltage3V3Meas = registers[4]; // смотрим на плашку
@@ -217,5 +246,44 @@ namespace RTL.ViewModels
                 await Task.Delay(1000); // частота опроса
             }
         }
+
+
+        private async Task StartPoeTestAsync(CancellationToken token)
+        {
+            _isPoeTestRunning = true;
+
+            try
+            {
+                _logger.LogToUser("Тест запущен.", Loggers.LogLevel.Info);
+
+                for (int i = 0; i < 10; i++)
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        _logger.LogToUser("Тест прерван пользователем (тумблером).", Loggers.LogLevel.Warning);
+                        return;
+                    }
+
+                    _logger.LogToUser($"Шаг {i + 1}/10...", Loggers.LogLevel.Info);
+                    await Task.Delay(500, token); // поддержка отмены
+                }
+
+                _logger.LogToUser("Тест завершён успешно.", Loggers.LogLevel.Success);
+            }
+            catch (TaskCanceledException)
+            {
+                _logger.LogToUser("Тест был отменён.", Loggers.LogLevel.Warning);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка в тесте: {ex.Message}", Loggers.LogLevel.Error);
+            }
+            finally
+            {
+                _isPoeTestRunning = false;
+            }
+        }
+
+
     }
 }

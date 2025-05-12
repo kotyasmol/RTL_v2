@@ -256,33 +256,120 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест запущен.", Loggers.LogLevel.Info);
 
-                for (int i = 0; i < 10; i++)
+                // === Подтест 1 ===
+                if (TestConfig.IsTest1Required)
                 {
-                    if (token.IsCancellationRequested)
-                    {
-                        _logger.LogToUser("Тест прерван пользователем (тумблером).", Loggers.LogLevel.Warning);
-                        return;
-                    }
-
-                    _logger.LogToUser($"Шаг {i + 1}/10...", Loggers.LogLevel.Info);
-                    await Task.Delay(500, token); // поддержка отмены
+                    _logger.LogToUser("Подтест 1: запуск...", Loggers.LogLevel.Info);
+                    if (!await RunPoeSubTest1Async(token)) return;
+                    _logger.LogToUser("Подтест 1: успешно завершён.", Loggers.LogLevel.Success);
+                }
+                else
+                {
+                    _logger.LogToUser("Подтест 1: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
                 }
 
-                _logger.LogToUser("Тест завершён успешно.", Loggers.LogLevel.Success);
+                // === Подтест 2 ===
+                if (TestConfig.IsTest2Required)
+                {
+                    _logger.LogToUser("Подтест 2: запуск...", Loggers.LogLevel.Info);
+                    if (!await RunPoeSubTest2Async(token)) return;
+                    _logger.LogToUser("Подтест 2: успешно завершён.", Loggers.LogLevel.Success);
+                }
+                else
+                {
+                    _logger.LogToUser("Подтест 2: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
+                }
+
+                // === Подтест 3 ===
+                if (TestConfig.IsTest3Required)
+                {
+                    _logger.LogToUser("Подтест 3: запуск...", Loggers.LogLevel.Info);
+                    if (!await RunPoeSubTest3Async(token)) return;
+                    _logger.LogToUser("Подтест 3: успешно завершён.", Loggers.LogLevel.Success);
+                }
+                else
+                {
+                    _logger.LogToUser("Подтест 3: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
+                }
+
+                _logger.LogToUser("Все активные подтесты завершены успешно.", Loggers.LogLevel.Success);
             }
             catch (TaskCanceledException)
             {
-                _logger.LogToUser("Тест был отменён.", Loggers.LogLevel.Warning);
+                _logger.LogToUser("Тест был отменён пользователем.", Loggers.LogLevel.Warning);
             }
             catch (Exception ex)
             {
-                _logger.LogToUser($"Ошибка в тесте: {ex.Message}", Loggers.LogLevel.Error);
+                _logger.LogToUser($"Ошибка во время выполнения теста: {ex.Message}", Loggers.LogLevel.Error);
             }
             finally
             {
                 _isPoeTestRunning = false;
             }
         }
+        private async Task<bool> RunPoeSubTest1Async(CancellationToken token)
+        {
+            try
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    _logger.LogToUser($"Подтест 1 — шаг {i + 1}/3...", Loggers.LogLevel.Info);
+                    await Task.Delay(400, token);
+                }
+
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Подтест 1 был отменён.", Loggers.LogLevel.Warning);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка в подтесте 1: {ex.Message}", Loggers.LogLevel.Error);
+                return false;
+            }
+        }
+
+        private async Task<bool> RunPoeSubTest2Async(CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(1000, token); // имитация долгой операции
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Подтест 2 был отменён.", Loggers.LogLevel.Warning);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка в подтесте 2: {ex.Message}", Loggers.LogLevel.Error);
+                return false;
+            }
+        }
+
+        private async Task<bool> RunPoeSubTest3Async(CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(700, token); // другой пример
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Подтест 3 был отменён.", Loggers.LogLevel.Warning);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка в подтесте 3: {ex.Message}", Loggers.LogLevel.Error);
+                return false;
+            }
+        }
+
 
 
     }

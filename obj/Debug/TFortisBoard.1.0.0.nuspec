@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>TFortisBoard</id>
+    <version>1.0.0</version>
+    <authors>TFortisBoard</authors>
+    <description>Package Description</description>
+    <repository type="git" commit="57932fa91ac603b387433307b1dc8de8a61e4cd9" />
+    <dependencies>
+      <group targetFramework="net8.0-windows7.0">
+        <dependency id="HandyControl" version="3.5.1" exclude="Build,Analyzers" />
+        <dependency id="HandyControl.Lang.ru" version="3.5.1" exclude="Build,Analyzers" />
+        <dependency id="HandyControls" version="3.5.3" exclude="Build,Analyzers" />
+        <dependency id="InputSimulator" version="1.0.4" exclude="Build,Analyzers" />
+        <dependency id="Microsoft-Windows10-APICodePack-Shell" version="1.1.8" exclude="Build,Analyzers" />
+        <dependency id="Microsoft-WindowsAPICodePack-Shell" version="1.1.5" exclude="Build,Analyzers" />
+        <dependency id="Microsoft.Extensions.Identity.Core" version="9.0.3" exclude="Build,Analyzers" />
+        <dependency id="NModbus4" version="2.1.0" exclude="Build,Analyzers" />
+        <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+        <dependency id="OpenCvSharp4" version="4.10.0.20241108" exclude="Build,Analyzers" />
+        <dependency id="OpenCvSharp4.WpfExtensions" version="4.10.0.20241108" exclude="Build,Analyzers" />
+        <dependency id="OpenCvSharp4.runtime.win" version="4.10.0.20241108" exclude="Build,Analyzers" />
+        <dependency id="Serilog" version="4.2.0" exclude="Build,Analyzers" />
+        <dependency id="Serilog.Sinks.File" version="6.0.0" exclude="Build,Analyzers" />
+        <dependency id="Stylet" version="1.3.7" exclude="Build,Analyzers" />
+        <dependency id="Stylet.Start" version="1.3.7" exclude="Build,Analyzers" />
+        <dependency id="System.Drawing.Common" version="9.0.3" exclude="Build,Analyzers" />
+        <dependency id="System.IO.Ports" version="9.0.1" exclude="Build,Analyzers" />
+        <dependency id="System.Management" version="9.0.3" exclude="Build,Analyzers" />
+        <dependency id="WindowsAPICodePack" version="8.0.6" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+    <frameworkReferences>
+      <group targetFramework="net8.0-windows7.0">
+        <frameworkReference name="Microsoft.WindowsDesktop.App.WPF" />
+      </group>
+    </frameworkReferences>
+  </metadata>
+  <files>
+    <file src="C:\Users\user\Desktop\RTL_v2\bin\Debug\net8.0-windows\TFortisBoard.runtimeconfig.json" target="lib\net8.0-windows7.0\TFortisBoard.runtimeconfig.json" />
+    <file src="C:\Users\user\Desktop\RTL_v2\bin\Debug\net8.0-windows\TFortisBoard.dll" target="lib\net8.0-windows7.0\TFortisBoard.dll" />
+  </files>
+</package>

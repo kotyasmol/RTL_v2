@@ -71,11 +71,6 @@ namespace RTL.ViewModels
             ConnectCommand = new RelayCommand(async () => await ToggleConnectionAsync());
         }
 
-
-
-
-
-
         private void ScrollToEnd(object sender, NotifyCollectionChangedEventArgs e)
         {
             if (_logListBox != null && _logListBox.Items.Count > 0)
@@ -86,6 +81,7 @@ namespace RTL.ViewModels
                 }, DispatcherPriority.Background);
             }
         }
+
         private async Task ToggleConnectionAsync()
         {
             if (IsStandConnected)
@@ -181,8 +177,6 @@ namespace RTL.ViewModels
             }
         }
 
-
-
         private async Task MonitorPoeAsync()
         {
             while (IsStandConnected)
@@ -216,6 +210,7 @@ namespace RTL.ViewModels
                         if (_isPoeTestRunning)
                         {
                             _logger.LogToUser("Тумблер RUN выключен. Прерывание теста.", Loggers.LogLevel.Warning);
+                            await StopHard();
                             _testCts?.Cancel();
                         }
                         else
@@ -334,7 +329,6 @@ namespace RTL.ViewModels
             }
         }
 
-
         private async Task StartPoeTestAsync(CancellationToken token)
         {
             _isPoeTestRunning = true;
@@ -343,7 +337,8 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тест запущен.", Loggers.LogLevel.Info);
 
-                // === Подтест 1 ===FlashFirmwareAuto
+                await _modbusService.WriteSingleRegisterAsync(2492, 1);
+                // === Подтест 1 === FLASH
                 if (TestConfig.FlashFirmwareAuto)
                 {
                     _logger.LogToUser("Подтест 1: запуск...", Loggers.LogLevel.Info);
@@ -355,7 +350,7 @@ namespace RTL.ViewModels
                     _logger.LogToUser("Подтест 1: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
                 }
 
-                // === Подтест 2 ===
+                // === Подтест 2 === MCU
                 if (TestConfig.McuFirmwareAuto)
                 {
                     _logger.LogToUser("Подтест 2: запуск...", Loggers.LogLevel.Info);
@@ -366,20 +361,52 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Подтест 2: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
                 }
-
-                // === Подтест 3 ===
-                if (TestConfig.FlashFirmwareAuto)
+                // перезагрузка платы
+                if (!await StartBoardPowerSequenceAsync(token))
                 {
-                    _logger.LogToUser("Подтест 3: запуск...", Loggers.LogLevel.Info);
-                    if (!await RunPoeSubTest3Async(token)) return;
-                    _logger.LogToUser("Подтест 3: успешно завершён.", Loggers.LogLevel.Success);
+                    await StopHard();
+                    return;
+                }
+
+                // === Подтест 3: Проверка напряжения 3.3В ===
+                if (TestConfig?.Is3v3TestRequired == true)
+                {
+                    _logger.LogToUser("Проверка напряжения 3.3В...", Loggers.LogLevel.Info);
+                    if (!await RunCheck3V3VoltageTestAsync(token)) return;
+                    _logger.LogToUser("Проверка напряжения 3.3В успешно завершена.", Loggers.LogLevel.Success);
                 }
                 else
                 {
-                    _logger.LogToUser("Подтест 3: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
+                    _logger.LogToUser("Подтест 3: Проверка напряжения 3.3В отключена в профиле тестирования.", Loggers.LogLevel.Warning);
                 }
 
+                // проверка версии платы
+                if (TestConfig.IsBoardVersionCheckEnabled)
+                {
+                    _logger.LogToUser("Проверка версии платы: запуск...", Loggers.LogLevel.Info);
+                    if (!await RunCheckBoardVersionAsync(token)) return;
+                    _logger.LogToUser("Проверка версии платы успешно завершена.", Loggers.LogLevel.Success);
+                }
+                else
+                {
+                    _logger.LogToUser("Проверка версии платы пропущена (отключена в профиле).", Loggers.LogLevel.Warning);
+                }
+
+                // проверка пое на портах
+                if (TestConfig.IsPoeTestRequired)
+                {
+                    _logger.LogToUser("Проверка подачи PoE: запуск...", Loggers.LogLevel.Info);
+                    if (!await RunPoePowerDeliveryTestAsync(token)) return;
+                    _logger.LogToUser("Проверка подачи PoE успешно завершена.", Loggers.LogLevel.Success);
+                }
+                else
+                {
+                    _logger.LogToUser("Проверка подачи PoE пропущена (отключена в профиле).", Loggers.LogLevel.Warning);
+                }
+
+
                 _logger.LogToUser("Все активные подтесты завершены успешно.", Loggers.LogLevel.Success);
+                await StopHard();
             }
             catch (TaskCanceledException)
             {
@@ -394,6 +421,7 @@ namespace RTL.ViewModels
                 _isPoeTestRunning = false;
             }
         }
+        
         private async Task<bool> RunPoeSubTest1Async(CancellationToken token)
         {
             try
@@ -438,26 +466,208 @@ namespace RTL.ViewModels
             }
         }
 
-        private async Task<bool> RunPoeSubTest3Async(CancellationToken token)
+        private async Task<bool> StartBoardPowerSequenceAsync(CancellationToken token)
         {
             try
             {
-                await Task.Delay(700, token); // другой пример
+                token.ThrowIfCancellationRequested();
+
+                // 1. Подать основное питание
+                bool powerOnResult = await _modbusService.WriteSingleRegisterAsync(2403, 1);
+                if (!powerOnResult)
+                {
+                    _logger.LogToUser("Не удалось подать основное питание на плату.", Loggers.LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+                _logger.Log("Питание (52В) подано на плату.", Loggers.LogLevel.Info);
+
+                token.ThrowIfCancellationRequested();
+
+                // 2. Перезагрузка платы: 2489 = 1 → подождать 2 сек → 2489 = 0
+                bool rebootStartResult = await _modbusService.WriteSingleRegisterAsync(2489, 1);
+                if (!rebootStartResult)
+                {
+                    _logger.LogToUser("Не удалось инициировать перезагрузку платы.", Loggers.LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+                _logger.Log("Перезагрузка платы запущена.", Loggers.LogLevel.Info);
+
+                await Task.Delay(TimeSpan.FromSeconds(2), token);
+
+                token.ThrowIfCancellationRequested();
+
+                bool rebootStopResult = await _modbusService.WriteSingleRegisterAsync(2489, 0);
+                if (!rebootStopResult)
+                {
+                    _logger.LogToUser("Не удалось завершить перезагрузку платы.", Loggers.LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+
+                token.ThrowIfCancellationRequested();
+
+                // 3. Подождать время запуска платы из профиля
+                int delaySeconds = TestConfig?.StartUpTime ?? 0;
+                if (delaySeconds > 0)
+                {
+                    _logger.LogToUser($"Ожидание запуска платы: {delaySeconds} секунд.", Loggers.LogLevel.Info);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), token);
+                }
+
+                _logger.LogToUser("Плата готова к тестированию.", Loggers.LogLevel.Success);
                 return true;
             }
             catch (OperationCanceledException)
             {
-                _logger.LogToUser("Подтест 3 был отменён.", Loggers.LogLevel.Warning);
+                _logger.LogToUser("Последовательность включения платы была отменена.", Loggers.LogLevel.Warning);
+                await StopHard();
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogToUser($"Ошибка в подтесте 3: {ex.Message}", Loggers.LogLevel.Error);
+                _logger.LogToUser($"Ошибка при запуске платы: {ex.Message}", Loggers.LogLevel.Error);
+                await StopHard();
                 return false;
             }
         }
 
+        private async Task<bool> RunCheck3V3VoltageTestAsync(CancellationToken token)
+        {
+            try
+            {
+                token.ThrowIfCancellationRequested();
+
+                ushort voltageRaw = PoeRegisters.Voltage3V3Meas;
+                if (voltageRaw < TestConfig.V3v3Min || voltageRaw > TestConfig.V3v3Max)
+                {
+                    _logger.LogToUser($"Измеренное значение напряжения 3.3В: {voltageRaw} — вне допустимого диапазона ({TestConfig.V3v3Min} – {TestConfig.V3v3Max}).", Loggers.LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+
+                _logger.LogToUser($"Измеренное значение напряжения 3.3В: {voltageRaw} — в пределах нормы.", Loggers.LogLevel.Success);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Подтест 3.3В был отменён пользователем.", Loggers.LogLevel.Warning);
+                await StopHard();
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при выполнении проверки 3.3В: {ex.Message}", Loggers.LogLevel.Error);
+                await StopHard();
+                return false;
+            }
+        }
+
+        private async Task<bool> RunCheckBoardVersionAsync(CancellationToken token)
+        {
+            try
+            {
+                token.ThrowIfCancellationRequested();
+
+                ushort actualBoardVersion = PoeRegisters.PoeId;
+                int expectedBoardVersion = TestConfig.BoardVersion;
+
+                if (actualBoardVersion != expectedBoardVersion)
+                {
+                    _logger.LogToUser($"Аппаратная версия платы: {actualBoardVersion} — не соответствует ожидаемой ({expectedBoardVersion}).", Loggers.LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+
+                _logger.LogToUser($"Аппаратная версия платы: {actualBoardVersion} — соответствует ожидаемой.", Loggers.LogLevel.Success);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Проверка версии платы была отменена пользователем.", Loggers.LogLevel.Warning);
+                await StopHard();
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при проверке версии платы: {ex.Message}", Loggers.LogLevel.Error);
+                await StopHard();
+                return false;
+            }
+        }
+
+        private async Task<bool> RunPoePowerDeliveryTestAsync(CancellationToken token)
+        {
+            try
+            {
+                var portsToTest = new (bool isEnabled, ushort aChannel, ushort bChannel, int portNum)[]
+                {
+            (TestConfig.IsPort1TestEnabled, PoeRegisters.PowerGood1AChannel1, PoeRegisters.PowerGood1BChannel2, 1),
+            (TestConfig.IsPort2TestEnabled, PoeRegisters.PowerGood2AChannel3, PoeRegisters.PowerGood2BChannel4, 2),
+            (TestConfig.IsPort3TestEnabled, PoeRegisters.PowerGood3AChannel5, PoeRegisters.PowerGood3BChannel6, 3),
+            (TestConfig.IsPort4TestEnabled, PoeRegisters.PowerGood4AChannel7, PoeRegisters.PowerGood4BChannel8, 4),
+            (TestConfig.IsPort5TestEnabled, PoeRegisters.PowerGood5AChannel9, PoeRegisters.PowerGood5BChannel10, 5),
+            (TestConfig.IsPort6TestEnabled, PoeRegisters.PowerGood6AChannel11, PoeRegisters.PowerGood6BChannel12, 6),
+            (TestConfig.IsPort7TestEnabled, PoeRegisters.PowerGood7AChannel13, PoeRegisters.PowerGood7BChannel14, 7),
+            (TestConfig.IsPort8TestEnabled, PoeRegisters.PowerGood8AChannel15, PoeRegisters.PowerGood8BChannel16, 8),
+                };
+
+                foreach (var (isEnabled, aReg, bReg, port) in portsToTest)
+                {
+                    token.ThrowIfCancellationRequested();
+                    await Task.Delay(2000, token);
+                    if (!isEnabled)
+                    {
+                        _logger.LogToUser($"PoE-тест порта {port} пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
+                        continue;
+                    }
+
+                    if (aReg != 1 || bReg != 1)
+                    {
+                        string aStatus = aReg != 1 ? "A: нет PoE" : "A: ОК";
+                        string bStatus = bReg != 1 ? "B: нет PoE" : "B: ОК";
+                        _logger.LogToUser($"На порту {port} обнаружена проблема с подачей PoE. {aStatus}, {bStatus}.", Loggers.LogLevel.Error);
+                        await StopHard();
+                        return false;
+                    }
+
+                    _logger.LogToUser($"PoE успешно подано на порт {port}.", Loggers.LogLevel.Success);
+                    
+                }
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Тест подачи PoE был отменён пользователем.", Loggers.LogLevel.Warning);
+                await StopHard();
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при выполнении PoE-теста: {ex.Message}", Loggers.LogLevel.Error);
+                await StopHard();
+                return false;
+            }
+        }
+
+        private async Task StopHard()
+        {
+            /*isSwTestFull = false;
+            isSwTestSuccess = false;*/
+
+            _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
+            await _modbusService.WriteSingleRegisterAsync(2403, 0);
+            await _modbusService.WriteSingleRegisterAsync(2492, 0);
+
+            await Task.Delay(500); // Даем время на обработку
+            //IsTestRunning = false;
 
 
+            // Отключаем питание платы
+
+
+            _logger.LogToUser("Питание снято. Плату можно безопасно извлечь из стенда.", Loggers.LogLevel.Info);
+        }
     }
 }

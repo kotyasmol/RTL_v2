@@ -39,10 +39,10 @@
             <!-- Картинка с Canvas -->
             <Grid Grid.Column="0">
                 <Viewbox Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top">
-                    <Grid Width="1684" Height="378">
+                    <Grid Width="950" Height="450">
                         <!-- Размер оригинального изображения -->
-                        <Image Source="/TFortisBoard;component/Resources/Images/PlateImages/RTL_POE.png"
-                   Stretch="Fill" Margin="10,10,10,10"/>
+                        <Image Source="/TFortisBoard;component/Resources/Images/PlateImages/RTL-POE.png"
+                   Stretch="Fill" Margin="10,10,10,0"/>
                         <Canvas IsHitTestVisible="False">
                             <Rectangle Canvas.Left="523" Canvas.Top="56" Width="39" Height="32"
                            Fill="Red" Opacity="0.8" Stroke="Black" StrokeThickness="2"/>

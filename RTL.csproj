@@ -11,12 +11,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Resources\Images\PlateImages\RTL-POE.png" />
     <None Remove="Resources\Images\PlateImages\RTL_SW1.png" />
     <None Remove="Resources\Instructions\instructionForSw.pdf" />
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Resources\Images\PlateImages\RTL_POE.png" />
     <EmbeddedResource Include="Resources\Instructions\instructionForSw.pdf" />
   </ItemGroup>
 
@@ -50,6 +50,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Resources\Images\PlateImages\RTL-POE.png" />
     <Resource Include="Resources\Images\PlateImages\RTL_SW1.png" />
   </ItemGroup>
 

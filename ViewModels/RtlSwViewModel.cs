@@ -1378,11 +1378,11 @@ namespace RTL.ViewModels
             if (!TestConfig.IsFlashProgrammingEnabled)
             {
                 _logger.LogToUser("Прошивка FLASH отключена в настройках.", LogLevel.Warning);
-                ReportModel.FlashReport.FlashResult = false; // Прошивка не выполнялась
+                ReportModel.FlashReport.FlashResult = false; 
                 return true;
             }
 
-            if (_isFirstFlashProgramming)
+            if (_isFirstFlashProgramming && TestConfig.IsFlashProgrammingEnabled)
             {
                 await OpenFlashProgramAsync();
                 return true;

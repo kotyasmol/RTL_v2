@@ -14,6 +14,7 @@ using System.ComponentModel;
 using RTL.Models;
 using System.IO;
 using Newtonsoft.Json;
+using System.Diagnostics;
 namespace RTL.ViewModels
 {
     public class RtlPoeViewModel : Screen
@@ -319,13 +320,31 @@ namespace RTL.ViewModels
                     PoeRegisters.UartTestStart = registers[93]; // 1 = start
                     PoeRegisters.UartTestResult = registers[94]; // 0 - stop. 1 - running. 2 - ok. 3 - fail.
 
+                    PoeRegisters.UartCh1Voltage = registers[95]; // uart voltage
+                    PoeRegisters.UartCh2Voltage = registers[96];
+                    PoeRegisters.UartCh3Voltage = registers[97];
+                    PoeRegisters.UartCh4Voltage = registers[98];
+                    PoeRegisters.UartCh5Voltage = registers[99];
+                    PoeRegisters.UartCh6Voltage = registers[100];
+                    PoeRegisters.UartCh7Voltage = registers[101];
+                    PoeRegisters.UartCh8Voltage = registers[102];
+                    PoeRegisters.UartCh9Voltage = registers[103];
+                    PoeRegisters.UartCh10Voltage = registers[104];
+                    PoeRegisters.UartCh11Voltage = registers[105];
+                    PoeRegisters.UartCh12Voltage = registers[106];
+                    PoeRegisters.UartCh13Voltage = registers[107];
+                    PoeRegisters.UartCh14Voltage = registers[108];
+                    PoeRegisters.UartCh15Voltage = registers[109];
+                    PoeRegisters.UartCh16Voltage = registers[110];
+
+
                 }
                 catch (Exception ex)
                 {
                     _logger.Log($"Ошибка при чтении регистров POE: {ex.Message}", Loggers.LogLevel.Error);
                 }
 
-                await Task.Delay(1000); // частота опроса
+                await Task.Delay(1000); 
             }
         }
 
@@ -335,7 +354,7 @@ namespace RTL.ViewModels
 
             try
             {
-                _logger.LogToUser("Тест запущен.", Loggers.LogLevel.Info);
+                _logger.LogToUser("Тестирование POE платы запущено.", Loggers.LogLevel.Info);
 
                 await _modbusService.WriteSingleRegisterAsync(2492, 1);
                 // === Подтест 1 === FLASH
@@ -368,7 +387,7 @@ namespace RTL.ViewModels
                     return;
                 }
 
-                // === Подтест 3: Проверка напряжения 3.3В ===
+                // Проверка напряжения 3.3В ===
                 if (TestConfig?.Is3v3TestRequired == true)
                 {
                     _logger.LogToUser("Проверка напряжения 3.3В...", Loggers.LogLevel.Info);
@@ -377,7 +396,7 @@ namespace RTL.ViewModels
                 }
                 else
                 {
-                    _logger.LogToUser("Подтест 3: Проверка напряжения 3.3В отключена в профиле тестирования.", Loggers.LogLevel.Warning);
+                    _logger.LogToUser("Проверка напряжения 3.3В отключена в профиле тестирования.", Loggers.LogLevel.Warning);
                 }
 
                 // проверка версии платы
@@ -403,6 +422,40 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Проверка подачи PoE пропущена (отключена в профиле).", Loggers.LogLevel.Warning);
                 }
+
+                // проверка светодиодов
+                if (TestConfig.IsLedTestRequired)
+                {
+                    _logger.LogToUser("Проверка светодиодов: запуск...", Loggers.LogLevel.Info);
+
+                    if (!await RunLedTestAsync(token))
+                        return; 
+
+                    _logger.LogToUser("Проверка светодиодов успешно завершена.", Loggers.LogLevel.Success);
+                }
+                else
+                {
+                    _logger.LogToUser("Проверка светодиодов пропущена (отключена в профиле).", Loggers.LogLevel.Warning);
+                }
+
+
+
+                // uart тест
+                if (TestConfig.IsUartTestRequired)
+                {
+                    _logger.LogToUser("Тестирование интерфейса UART: запуск...", Loggers.LogLevel.Info);
+                    if (!await RunUartInterfaceTestAsync(token))
+                    {
+                        _logger.LogToUser("Тестирование интерфейса UART завершено с ошибкой.", Loggers.LogLevel.Error);
+                        return;
+                    }
+                    _logger.LogToUser("Тестирование интерфейса UART успешно завершено.", Loggers.LogLevel.Success);
+                }
+                else
+                {
+                    _logger.LogToUser("Тестирование интерфейса UART пропущено (отключено в профиле).", Loggers.LogLevel.Warning);
+                }
+
 
 
                 _logger.LogToUser("Все активные подтесты завершены успешно.", Loggers.LogLevel.Success);
@@ -616,7 +669,7 @@ namespace RTL.ViewModels
                 foreach (var (isEnabled, aReg, bReg, port) in portsToTest)
                 {
                     token.ThrowIfCancellationRequested();
-                    await Task.Delay(2000, token);
+                    await Task.Delay(4000, token); 
                     if (!isEnabled)
                     {
                         _logger.LogToUser($"PoE-тест порта {port} пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
@@ -650,6 +703,222 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+
+        public async Task<bool> RunUartInterfaceTestAsync(CancellationToken token)
+        {
+            try
+            {
+
+
+
+                _logger.Log("UART: Запускаем тест — записываем 1 в регистр 2493.", Loggers.LogLevel.Debug);
+                await _modbusService.WriteSingleRegisterAsync(2493, 1);
+
+                // Ожидаем, пока значение в 2494 станет 1 (тест запущен), максимум 5 секунд
+                var sw = Stopwatch.StartNew();
+                while (PoeRegisters.UartTestStart != 2 && sw.Elapsed < TimeSpan.FromSeconds(5))
+                {
+                    token.ThrowIfCancellationRequested();
+                    _logger.Log($"UART: Ожидание запуска теста. Значение 2494: {PoeRegisters.UartTestResult}", Loggers.LogLevel.Debug);
+                    await Task.Delay(200);
+                }
+
+                if (PoeRegisters.UartTestStart != 2)
+                {
+                    _logger.LogToUser("Тест UART не запустился в течение 5 секунд.", Loggers.LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+
+                _logger.Log("UART: Тест запущен. Ожидаем завершения...", Loggers.LogLevel.Debug);
+
+                // Ожидаем завершения теста (2494 = 2 или 3), максимум 10 секунд
+                sw.Restart();
+                while (PoeRegisters.UartTestStart == 2 && sw.Elapsed < TimeSpan.FromSeconds(10))
+                {
+                    token.ThrowIfCancellationRequested();
+                    _logger.Log("UART: Тест выполняется...", Loggers.LogLevel.Debug);
+                    await Task.Delay(500);
+                }
+
+                _logger.Log($"UART: Тест завершён. Статус 2494: {PoeRegisters.UartTestResult}", Loggers.LogLevel.Debug);
+
+                if (PoeRegisters.UartTestResult == 2)
+                {
+                    _logger.LogToUser("Тестирование UART прошло успешно.", Loggers.LogLevel.Success);
+                }
+                else if (PoeRegisters.UartTestResult == 3)
+                {
+                    _logger.LogToUser("Тестирование UART неудачно.", Loggers.LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+                else
+                {
+                    _logger.LogToUser("Тестирование UART завершено с неизвестным статусом.", Loggers.LogLevel.Warning);
+                    _logger.Log($"UART: Неизвестный статус после теста: {PoeRegisters.UartTestResult}", Loggers.LogLevel.Debug);
+                    await StopHard();
+                    return false;
+                }
+
+
+                // Проверка напряжений на каналах PoE
+                bool isTestPassed = true;
+
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh1Voltage, TestConfig.UartCh1VoltageMin, TestConfig.UartCh1VoltageMax, "1");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh2Voltage, TestConfig.UartCh2VoltageMin, TestConfig.UartCh2VoltageMax, "2");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh3Voltage, TestConfig.UartCh3VoltageMin, TestConfig.UartCh3VoltageMax, "3");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh4Voltage, TestConfig.UartCh4VoltageMin, TestConfig.UartCh4VoltageMax, "4");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh5Voltage, TestConfig.UartCh5VoltageMin, TestConfig.UartCh5VoltageMax, "5");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh6Voltage, TestConfig.UartCh6VoltageMin, TestConfig.UartCh6VoltageMax, "6");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh7Voltage, TestConfig.UartCh7VoltageMin, TestConfig.UartCh7VoltageMax, "7");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh8Voltage, TestConfig.UartCh8VoltageMin, TestConfig.UartCh8VoltageMax, "8");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh9Voltage, TestConfig.UartCh9VoltageMin, TestConfig.UartCh9VoltageMax, "9");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh10Voltage, TestConfig.UartCh10VoltageMin, TestConfig.UartCh10VoltageMax, "10");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh11Voltage, TestConfig.UartCh11VoltageMin, TestConfig.UartCh11VoltageMax, "11");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh12Voltage, TestConfig.UartCh12VoltageMin, TestConfig.UartCh12VoltageMax, "12");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh13Voltage, TestConfig.UartCh13VoltageMin, TestConfig.UartCh13VoltageMax, "13");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh14Voltage, TestConfig.UartCh14VoltageMin, TestConfig.UartCh14VoltageMax, "14");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh15Voltage, TestConfig.UartCh15VoltageMin, TestConfig.UartCh15VoltageMax, "15");
+                isTestPassed &= CheckUartVoltage(PoeRegisters.UartCh16Voltage, TestConfig.UartCh16VoltageMin, TestConfig.UartCh16VoltageMax, "16");
+
+                if (isTestPassed)
+                {
+                    _logger.LogToUser("Тестирование напряжений на каналах UART прошло успешно.", Loggers.LogLevel.Success);
+                    return true;
+                }
+                else
+                {
+                    _logger.LogToUser("Тестирование напряжений на каналах UART завершилось с ошибками.", Loggers.LogLevel.Error);
+                    await StopHard();
+                    return false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Тестирование интерфейса UART было отменено.", Loggers.LogLevel.Warning);
+                await StopHard();
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при тестировании интерфейса UART: {ex.Message}", Loggers.LogLevel.Error);
+                _logger.Log( $"UART: Исключение - {ex}", Loggers.LogLevel.Debug);
+                await StopHard();
+                return false;
+            }
+        }
+        private bool CheckUartVoltage(ushort registerValue, int minVoltage, int maxVoltage, string channel)
+        {
+            
+            if (registerValue < minVoltage  || registerValue > maxVoltage )
+            {
+                _logger.LogToUser($"Канал {channel}: напряжение {registerValue} находится вне допустимого диапазона ({minVoltage} - {maxVoltage}).", Loggers.LogLevel.Error);
+                return false;
+            }
+            else
+            {
+                _logger.LogToUser($"Канал {channel}: напряжение {registerValue} в пределах нормы.", Loggers.LogLevel.Info);
+                return true;
+            }
+        }
+        private async Task<bool> RunLedTestAsync(CancellationToken token)
+        {
+            try
+            {
+                if (!TestConfig.IsLedTestRequired)
+                {
+                    _logger.LogToUser("Тестирование светодиодов отключено в профиле.", Loggers.LogLevel.Info);
+                    return true;
+                }
+
+                _logger.LogToUser("Подтест: Проверка светодиодов...", Loggers.LogLevel.Info);
+
+                bool allOk = true;
+
+                for (int channel = 1; channel <= 16; channel++)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    var (r, g, b, w) = GetChannelColorValues(channel);
+                    bool isMatch = IsExpectedColor(r, g, b, w, TestConfig.LedColour);
+
+                    if (isMatch)
+                    {
+                        _logger.Log($"Порт {channel}: Цвет соответствует ожидаемому — R:{r}, G:{g}, B:{b}, W:{w}", Loggers.LogLevel.Debug);
+                    }
+                    else
+                    {
+                        _logger.LogToUser($"Порт {channel}: Цвет не соответствует ожидаемому ({TestConfig.LedColour}).", Loggers.LogLevel.Error);
+                        _logger.Log($"Порт {channel}: Получено — R:{r}, G:{g}, B:{b}, W:{w}", Loggers.LogLevel.Debug);
+                        allOk = false;
+                    }
+
+                    await Task.Delay(100, token); // небольшая задержка между каналами
+                }
+
+                if (allOk)
+                {
+                    _logger.LogToUser("Проверка светодиодов прошла успешно.", Loggers.LogLevel.Success);
+                    return true;
+                }
+                else
+                {
+                    _logger.LogToUser("Проверка светодиодов завершилась с ошибками.", Loggers.LogLevel.Warning);
+                    await StopHard();
+                    return false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogToUser("Проверка светодиодов была отменена.", Loggers.LogLevel.Warning);
+                await StopHard();
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка во время проверки светодиодов: {ex.Message}", Loggers.LogLevel.Error);
+                await StopHard();
+                return false;
+            }
+        }
+
+        private bool IsExpectedColor(int r, int g, int b, int w, string expectedColor)
+        {
+            expectedColor = expectedColor.ToLower();
+            return expectedColor switch
+            {
+                "blue" => b > r + 20 && b > g + 20 && b > 50,
+                "red" => r > g + 20 && r > b + 20 && r > 50,
+                "green" => g > r + 20 && g > b + 20 && g > 50,
+                "white" => Math.Abs(r - g) < 20 && Math.Abs(r - b) < 20 && w > 50,
+                _ => false
+            };
+        }
+        private (int r, int g, int b, int w) GetChannelColorValues(int channel)
+        {
+            return channel switch
+            {
+                1 => (PoeRegisters.Red1AChannel1, PoeRegisters.Green1AChannel1, PoeRegisters.Blue1AChannel1, PoeRegisters.White1AChannel1),
+                2 => (PoeRegisters.Red1BChannel2, PoeRegisters.Green1BChannel2, PoeRegisters.Blue1BChannel2, PoeRegisters.White1BChannel2),
+                3 => (PoeRegisters.Red2AChannel3, PoeRegisters.Green2AChannel3, PoeRegisters.Blue2AChannel3, PoeRegisters.White2AChannel3),
+                4 => (PoeRegisters.Red2BChannel4, PoeRegisters.Green2BChannel4, PoeRegisters.Blue2BChannel4, PoeRegisters.White2BChannel4),
+                5 => (PoeRegisters.Red3AChannel5, PoeRegisters.Green3AChannel5, PoeRegisters.Blue3AChannel5, PoeRegisters.White3AChannel5),
+                6 => (PoeRegisters.Red3BChannel6, PoeRegisters.Green3BChannel6, PoeRegisters.Blue3BChannel6, PoeRegisters.White3BChannel6),
+                7 => (PoeRegisters.Red4AChannel7, PoeRegisters.Green4AChannel7, PoeRegisters.Blue4AChannel7, PoeRegisters.White4AChannel7),
+                8 => (PoeRegisters.Red4BChannel8, PoeRegisters.Green4BChannel8, PoeRegisters.Blue4BChannel8, PoeRegisters.White4BChannel8),
+                9 => (PoeRegisters.Red5AChannel9, PoeRegisters.Green5AChannel9, PoeRegisters.Blue5AChannel9, PoeRegisters.White5AChannel9),
+                10 => (PoeRegisters.Red5BChannel10, PoeRegisters.Green5BChannel10, PoeRegisters.Blue5BChannel10, PoeRegisters.White5BChannel10),
+                11 => (PoeRegisters.Red6AChannel11, PoeRegisters.Green6AChannel11, PoeRegisters.Blue6AChannel11, PoeRegisters.White6AChannel11),
+                12 => (PoeRegisters.Red6BChannel12, PoeRegisters.Green6BChannel12, PoeRegisters.Blue6BChannel12, PoeRegisters.White6BChannel12),
+                13 => (PoeRegisters.Red7AChannel13, PoeRegisters.Green7AChannel13, PoeRegisters.Blue7AChannel13, PoeRegisters.White7AChannel13),
+                14 => (PoeRegisters.Red7BChannel14, PoeRegisters.Green7BChannel14, PoeRegisters.Blue7BChannel14, PoeRegisters.White7BChannel14),
+                15 => (PoeRegisters.Red8AChannel15, PoeRegisters.Green8AChannel15, PoeRegisters.Blue8AChannel15, PoeRegisters.White8AChannel15),
+                16 => (PoeRegisters.Red8BChannel16, PoeRegisters.Green8BChannel16, PoeRegisters.Blue8BChannel16, PoeRegisters.White8BChannel16),
+                _ => (0, 0, 0, 0)
+            };
+        }
+
 
         private async Task StopHard()
         {

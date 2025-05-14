@@ -11,6 +11,10 @@
       "RelativeMoniker": "D:0:0:{C450FCF2-DC03-422A-AEFA-A365477A6C88}|RTL.csproj|solutionrelative:models\\poetestprofilemodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{C450FCF2-DC03-422A-AEFA-A365477A6C88}|RTL.csproj|c:\\users\\user\\desktop\\rtl_v2\\models\\poeregistersmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C450FCF2-DC03-422A-AEFA-A365477A6C88}|RTL.csproj|solutionrelative:models\\poeregistersmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{C450FCF2-DC03-422A-AEFA-A365477A6C88}|RTL.csproj|c:\\users\\user\\desktop\\rtl_v2\\views\\rtlpoeview.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
       "RelativeMoniker": "D:0:0:{C450FCF2-DC03-422A-AEFA-A365477A6C88}|RTL.csproj|solutionrelative:views\\rtlpoeview.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
     }
@@ -22,7 +26,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Bookmark",
@@ -34,13 +38,26 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "PoeRegistersModel.cs",
+              "DocumentMoniker": "C:\\Users\\user\\Desktop\\RTL_v2\\Models\\PoeRegistersModel.cs",
+              "RelativeDocumentMoniker": "Models\\PoeRegistersModel.cs",
+              "ToolTip": "C:\\Users\\user\\Desktop\\RTL_v2\\Models\\PoeRegistersModel.cs",
+              "RelativeToolTip": "Models\\PoeRegistersModel.cs",
+              "ViewState": "AgIAAMcBAAAAAAAAAADwv+QBAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-14T08:20:39.03Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 1,
               "Title": "PoeTestProfileModel.cs",
               "DocumentMoniker": "C:\\Users\\user\\Desktop\\RTL_v2\\Models\\PoeTestProfileModel.cs",
               "RelativeDocumentMoniker": "Models\\PoeTestProfileModel.cs",
               "ToolTip": "C:\\Users\\user\\Desktop\\RTL_v2\\Models\\PoeTestProfileModel.cs",
               "RelativeToolTip": "Models\\PoeTestProfileModel.cs",
-              "ViewState": "AgIAAGEAAAAAAAAAAAAgwHMAAAAlAAAAAAAAAA==",
+              "ViewState": "AgIAALAAAAAAAAAAAAAkwMEAAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-05-13T09:31:09.168Z",
               "EditorCaption": ""
@@ -53,22 +70,21 @@
               "RelativeDocumentMoniker": "ViewModels\\RtlPoeViewModel.cs",
               "ToolTip": "C:\\Users\\user\\Desktop\\RTL_v2\\ViewModels\\RtlPoeViewModel.cs",
               "RelativeToolTip": "ViewModels\\RtlPoeViewModel.cs",
-              "ViewState": "AgIAALIAAAAAAAAAAAAswNQAAAAtAAAAAAAAAA==",
+              "ViewState": "AgIAADkAAAAAAAAAAAAIwNAAAAAqAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-05-13T09:28:34.537Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "RtlPoeView.xaml",
               "DocumentMoniker": "C:\\Users\\user\\Desktop\\RTL_v2\\Views\\RtlPoeView.xaml",
               "RelativeDocumentMoniker": "Views\\RtlPoeView.xaml",
               "ToolTip": "C:\\Users\\user\\Desktop\\RTL_v2\\Views\\RtlPoeView.xaml",
               "RelativeToolTip": "Views\\RtlPoeView.xaml",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-05-13T10:04:07.441Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-05-13T10:04:07.441Z"
             }
           ]
         }

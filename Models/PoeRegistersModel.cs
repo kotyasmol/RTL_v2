@@ -429,6 +429,55 @@ namespace RTL.Models
         public ushort UartTestResult { get => _uartTestResult; set => SetAndNotify(ref _uartTestResult, value); }
 
 
+        private ushort _uartCh1Voltage;
+        public ushort UartCh1Voltage { get => _uartCh1Voltage; set => SetAndNotify(ref _uartCh1Voltage, value); }
+
+        private ushort _uartCh2Voltage;
+        public ushort UartCh2Voltage { get => _uartCh2Voltage; set => SetAndNotify(ref _uartCh2Voltage, value); }
+
+        private ushort _uartCh3Voltage;
+        public ushort UartCh3Voltage { get => _uartCh3Voltage; set => SetAndNotify(ref _uartCh3Voltage, value); }
+
+        private ushort _uartCh4Voltage;
+        public ushort UartCh4Voltage { get => _uartCh4Voltage; set => SetAndNotify(ref _uartCh4Voltage, value); }
+
+        private ushort _uartCh5Voltage;
+        public ushort UartCh5Voltage { get => _uartCh5Voltage; set => SetAndNotify(ref _uartCh5Voltage, value); }
+
+        private ushort _uartCh6Voltage;
+        public ushort UartCh6Voltage { get => _uartCh6Voltage; set => SetAndNotify(ref _uartCh6Voltage, value); }
+
+        private ushort _uartCh7Voltage;
+        public ushort UartCh7Voltage { get => _uartCh7Voltage; set => SetAndNotify(ref _uartCh7Voltage, value); }
+
+        private ushort _uartCh8Voltage;
+        public ushort UartCh8Voltage { get => _uartCh8Voltage; set => SetAndNotify(ref _uartCh8Voltage, value); }
+
+        private ushort _uartCh9Voltage;
+        public ushort UartCh9Voltage { get => _uartCh9Voltage; set => SetAndNotify(ref _uartCh9Voltage, value); }
+
+        private ushort _uartCh10Voltage;
+        public ushort UartCh10Voltage { get => _uartCh10Voltage; set => SetAndNotify(ref _uartCh10Voltage, value); }
+
+        private ushort _uartCh11Voltage;
+        public ushort UartCh11Voltage { get => _uartCh11Voltage; set => SetAndNotify(ref _uartCh11Voltage, value); }
+
+        private ushort _uartCh12Voltage;
+        public ushort UartCh12Voltage { get => _uartCh12Voltage; set => SetAndNotify(ref _uartCh12Voltage, value); }
+
+        private ushort _uartCh13Voltage;
+        public ushort UartCh13Voltage { get => _uartCh13Voltage; set => SetAndNotify(ref _uartCh13Voltage, value); }
+
+        private ushort _uartCh14Voltage;
+        public ushort UartCh14Voltage { get => _uartCh14Voltage; set => SetAndNotify(ref _uartCh14Voltage, value); }
+
+        private ushort _uartCh15Voltage;
+        public ushort UartCh15Voltage { get => _uartCh15Voltage; set => SetAndNotify(ref _uartCh15Voltage, value); }
+
+        private ushort _uartCh16Voltage;
+        public ushort UartCh16Voltage { get => _uartCh16Voltage; set => SetAndNotify(ref _uartCh16Voltage, value); }
+
+
         #endregion базовые регистры
 
 

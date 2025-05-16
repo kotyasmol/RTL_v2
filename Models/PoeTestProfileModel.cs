@@ -28,6 +28,13 @@ namespace RTL.Models
             set => SetAndNotify(ref _modelName, value);
         }
 
+        private bool _isReportRequired;
+        [JsonProperty("server_report")]
+        public bool IsReportRequired
+        {
+            get => _isReportRequired;
+            set => SetAndNotify(ref _isReportRequired, value);
+        }
 
 
         private bool _flashFirmwareAuto;

@@ -2645,6 +2645,7 @@ namespace RTL.ViewModels
 
 
         public static TestResult ServerTestResult;
+
         public RtlSwViewModel(Loggers logger, ReportService report)
         {
 
@@ -3144,7 +3145,6 @@ namespace RTL.ViewModels
             _logger.LogToUser("Питание снято. Плату можно безопасно извлечь из стенда.", Loggers.LogLevel.Info);
         }
 
-
         private async Task LoadSwReport()
         {
             if (TestConfig.IsReportGenerationEnabled)
@@ -3211,7 +3211,6 @@ namespace RTL.ViewModels
 
             _logger.LogToUser("Стенд успешно отключен.", Loggers.LogLevel.Info);
         }
-
 
         private async Task CloseConnections()
         {

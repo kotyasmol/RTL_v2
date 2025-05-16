@@ -15,13 +15,15 @@ using RTL.Models;
 using System.IO;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using System.Net.Http;
+using FTServiceUtils;
+using FTServiceUtils.Enums;
+using System.Configuration;
 namespace RTL.ViewModels
 {
     public class RtlPoeViewModel : Screen
     {
         public event PropertyChangedEventHandler PropertyChanged;
-
-
         private readonly Loggers _logger;
         public ObservableCollection<LogEntry> Logs => _logger.LogMessages;
         private ListBox _logListBox;
@@ -64,6 +66,16 @@ namespace RTL.ViewModels
         private bool _canStartTest = true;
         private CancellationTokenSource _testCts;
 
+        private bool _isServerConnected;
+
+        public bool IsServerConnected
+        {
+            get => _isServerConnected;
+            set => SetAndNotify(ref _isServerConnected, value);
+        }
+
+        public string SessionId;  //id сессии, без него не отправишь рез-ты
+        public static TestResult ServerPoeTestResult;
 
         public RtlPoeViewModel([Inject(Key = "POE")] Loggers logger)
         {
@@ -96,7 +108,7 @@ namespace RTL.ViewModels
                 bool result = await _modbusService.ConnectAsync();
                 if (result)
                 {
-                    // Загружаем профиль перед стартом мониторинга
+                    // профиль перед стартом мониторинга
                     string profilePath = Properties.Settings.Default.RtlPoeProfilePath;
                     if (!File.Exists(profilePath))
                     {
@@ -111,10 +123,26 @@ namespace RTL.ViewModels
                         return;
                     }
 
-                    IsStandConnected = true;
-                    _logger.LogToUser("Успешное подключение к стенду POE.", Loggers.LogLevel.Success);
+                    // Подключение к серверу — только если отчёты включены
+                    if (TestConfig.IsReportRequired)
+                    {
+                        bool serverConnected = await TryConnectToServerAsync();
+                        if (!serverConnected)
+                        {
+                            _logger.LogToUser("Подключение к серверу не удалось. Отправка отчётов обязательна. Работа прервана.", Loggers.LogLevel.Error);
+                            return; // прерываем подключение — дальше не продолжаем
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogToUser("Отправка отчётов отключена в профиле. Подключение к серверу пропущено.", Loggers.LogLevel.Info);
+                    }
 
-                    _ = MonitorPoeAsync(); // запускаем мониторинг без ожидания
+
+                    IsStandConnected = true;
+
+                    _ = MonitorPoeAsync(); // мониторинг без ожидания
+                    _logger.LogToUser($"Успешное подключение к стенду POE. Серийный номер стенда: {PoeRegisters.StandSerialNumber}", Loggers.LogLevel.Success);
                 }
                 else
                 {
@@ -123,6 +151,112 @@ namespace RTL.ViewModels
             }
         }
 
+        private async Task<bool> TryConnectToServerAsync()
+        {
+            const string url = "http://iccid.fort-telecom.ru/api/Api.svc/ping";
+            const int maxRetries = 3; // Количество повторных попыток
+            const int delayMs = 2000; // Задержка между попытками (2 сек)
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    using (HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+                    {
+                        client.DefaultRequestHeaders.Add("User-Agent", "ftstand");
+
+                        _logger.LogToUser($"Попытка {attempt}/{maxRetries}: подключение к серверу...", Loggers.LogLevel.Info);
+
+                        HttpResponseMessage response = await client.GetAsync(url);
+                        string responseContent = await response.Content.ReadAsStringAsync();
+
+                        if (response.IsSuccessStatusCode && !responseContent.Contains("error"))
+                        {
+                            _logger.LogToUser($"Подключение к серверу успешно. Код: {response.StatusCode}", Loggers.LogLevel.Success);
+                            SessionId = GetSessionId("alex", "alex", 5); 
+                            //SessionId = App.StartupSessionId; ---- только таким образом получаем в итоговом файле id сессии
+
+                            _logger.LogToUser($"Получен SessionId: {SessionId}", Loggers.LogLevel.Debug);
+
+                            IsServerConnected = true;
+                            return true;
+                        }
+                        else
+                        {
+                            _logger.LogToUser($"Ошибка подключения. Код: {response.StatusCode}, Ответ: {responseContent}", Loggers.LogLevel.Warning);
+                        }
+                    }
+                }
+                catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+                {
+                    _logger.LogToUser($"Тайм-аут при подключении. Сервер не отвечает. Попробуйте позже.", Loggers.LogLevel.Error);
+                }
+                catch (HttpRequestException ex)
+                {
+                    _logger.LogToUser($"Ошибка сети: {ex.Message}. Проверьте интернет-соединение.", Loggers.LogLevel.Error);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogToUser($"Ошибка подключения к серверу: {ex.Message}", Loggers.LogLevel.Error);
+                }
+
+                if (attempt < maxRetries)
+                {
+                    _logger.LogToUser($"Повторная попытка через {delayMs / 1000} секунд...", Loggers.LogLevel.Info);
+                    await Task.Delay(delayMs);
+                }
+            }
+
+            _logger.LogToUser($"Все попытки подключения исчерпаны. Проверьте настройки сети.", Loggers.LogLevel.Error);
+            IsServerConnected = false;
+            return false;
+        }
+        private string GetSessionId(string login, string password, int timezone) // заглушка временная
+        {
+            string url = $"http://iccid.fort-telecom.ru/api/Api.svc/connect?login={login}&password={password}&timezone={timezone}";
+
+            try
+            {
+                using (HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+                {
+                    client.DefaultRequestHeaders.Add("User-Agent", "ftstand");
+
+                    HttpResponseMessage response = client.GetAsync(url).Result;
+                    string responseContent = response.Content.ReadAsStringAsync().Result;
+
+                    _logger.Log($"Ответ сервера (sessionId): {responseContent}", Loggers.LogLevel.Debug);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.Log($"Ошибка получения sessionId. Код: {response.StatusCode}, Ответ: {responseContent}", Loggers.LogLevel.Warning);
+                        return null;
+                    }
+
+                    // Убираем кавычки, если сервер вернул строку
+                    string sessionId = responseContent.Trim('"');
+
+                    if (!string.IsNullOrEmpty(sessionId))
+                    {
+                        _logger.Log($"Успешно получен sessionId: {sessionId}", Loggers.LogLevel.Success);
+                        return sessionId;
+                    }
+                    else
+                    {
+                        _logger.Log($"Сервер не вернул корректный sessionId: {responseContent}", Loggers.LogLevel.Warning);
+                    }
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.Log($"Ошибка сети при получении sessionId: {ex.Message}", Loggers.LogLevel.Error);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка при получении sessionId: {ex.Message}", Loggers.LogLevel.Error);
+            }
+
+            return null;
+        }
         private async Task<bool> TryLoadTestProfileAsync()
         {
             string testProfilePath = Properties.Settings.Default.RtlPoeProfilePath;
@@ -354,7 +488,21 @@ namespace RTL.ViewModels
 
             try
             {
+                ServerPoeTestResult = new TestResult
+                {
+                    deviceType = DeviceType.RTL_SW,
+                    standName = Environment.MachineName,
+                    isSuccess = false,
+                    deviceIdent = "abracadabra123", // серийник платы
+                    isFull = false,
+
+                };
+                //ServerPoeTestResult.deviceSerial = "31200001"; --- Эта ерунда всё ломает. никогда не указывать вручную. 
+                ServerPoeTestResult.AddSubTest($"название теста ", true, $"результаты измерений и мин/макс допуски");
+
+
                 _logger.LogToUser("Тестирование POE платы запущено.", Loggers.LogLevel.Info);
+
 
                 await _modbusService.WriteSingleRegisterAsync(2492, 1);
                 // === Подтест 1 === FLASH
@@ -367,6 +515,7 @@ namespace RTL.ViewModels
                 else
                 {
                     _logger.LogToUser("Подтест 1: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
+                    ServerPoeTestResult.isFull = false;
                 }
 
                 // === Подтест 2 === MCU
@@ -379,6 +528,7 @@ namespace RTL.ViewModels
                 else
                 {
                     _logger.LogToUser("Подтест 2: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
+                    ServerPoeTestResult.isFull = false;
                 }
                 // перезагрузка платы
                 if (!await StartBoardPowerSequenceAsync(token))
@@ -397,6 +547,7 @@ namespace RTL.ViewModels
                 else
                 {
                     _logger.LogToUser("Проверка напряжения 3.3В отключена в профиле тестирования.", Loggers.LogLevel.Warning);
+                    ServerPoeTestResult.isFull = false;
                 }
 
                 // проверка версии платы
@@ -409,6 +560,7 @@ namespace RTL.ViewModels
                 else
                 {
                     _logger.LogToUser("Проверка версии платы пропущена (отключена в профиле).", Loggers.LogLevel.Warning);
+                    ServerPoeTestResult.isFull = false;
                 }
 
                 // проверка пое на портах
@@ -421,6 +573,7 @@ namespace RTL.ViewModels
                 else
                 {
                     _logger.LogToUser("Проверка подачи PoE пропущена (отключена в профиле).", Loggers.LogLevel.Warning);
+                    ServerPoeTestResult.isFull = false;
                 }
 
                 // проверка светодиодов
@@ -436,6 +589,7 @@ namespace RTL.ViewModels
                 else
                 {
                     _logger.LogToUser("Проверка светодиодов пропущена (отключена в профиле).", Loggers.LogLevel.Warning);
+                    ServerPoeTestResult.isFull = false;
                 }
 
 
@@ -454,9 +608,10 @@ namespace RTL.ViewModels
                 else
                 {
                     _logger.LogToUser("Тестирование интерфейса UART пропущено (отключено в профиле).", Loggers.LogLevel.Warning);
+                    ServerPoeTestResult.isFull = false;
                 }
 
-
+                await LoadPoeReportAsync(); //потом убрать
 
                 _logger.LogToUser("Все активные подтесты завершены успешно.", Loggers.LogLevel.Success);
                 await StopHard();
@@ -591,31 +746,38 @@ namespace RTL.ViewModels
             try
             {
                 token.ThrowIfCancellationRequested();
+                bool isSuccess = PoeRegisters.Voltage3V3Meas >= TestConfig.V3v3Min && PoeRegisters.Voltage3V3Meas <= TestConfig.V3v3Max;
+                string measuredInfo = $"Измерено: {PoeRegisters.Voltage3V3Meas} (допуск: {TestConfig.V3v3Min} – {TestConfig.V3v3Max})";
 
-                ushort voltageRaw = PoeRegisters.Voltage3V3Meas;
-                if (voltageRaw < TestConfig.V3v3Min || voltageRaw > TestConfig.V3v3Max)
+                if (!isSuccess)
                 {
-                    _logger.LogToUser($"Измеренное значение напряжения 3.3В: {voltageRaw} — вне допустимого диапазона ({TestConfig.V3v3Min} – {TestConfig.V3v3Max}).", Loggers.LogLevel.Error);
+                    _logger.LogToUser($"Измеренное значение напряжения 3.3В: {PoeRegisters.Voltage3V3Meas} — вне допустимого диапазона ({TestConfig.V3v3Min} – {TestConfig.V3v3Max}).", Loggers.LogLevel.Error);
+                    ServerPoeTestResult.AddSubTest("Проверка напряжения 3.3В", false, measuredInfo);
                     await StopHard();
                     return false;
                 }
 
-                _logger.LogToUser($"Измеренное значение напряжения 3.3В: {voltageRaw} — в пределах нормы.", Loggers.LogLevel.Success);
+                _logger.LogToUser($"Измеренное значение напряжения 3.3В: {PoeRegisters.Voltage3V3Meas} — в пределах нормы.", Loggers.LogLevel.Success);
+                ServerPoeTestResult.AddSubTest("Проверка напряжения 3.3В", true, measuredInfo);
                 return true;
             }
             catch (OperationCanceledException)
             {
                 _logger.LogToUser("Подтест 3.3В был отменён пользователем.", Loggers.LogLevel.Warning);
+                ServerPoeTestResult.AddSubTest("Проверка напряжения 3.3В", false, "Операция отменена");
                 await StopHard();
                 return false;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка при выполнении проверки 3.3В: {ex.Message}", Loggers.LogLevel.Error);
+                ServerPoeTestResult.AddSubTest("Проверка напряжения 3.3В", false, $"Ошибка: {ex.Message}");
                 await StopHard();
                 return false;
             }
         }
+
+
 
         private async Task<bool> RunCheckBoardVersionAsync(CancellationToken token)
         {
@@ -920,21 +1082,54 @@ namespace RTL.ViewModels
         }
 
 
+
+        private async Task LoadPoeReportAsync()
+        {
+            if (TestConfig.IsReportRequired)
+            {
+                try
+                {
+                    _logger.LogToUser("Подготовка к отправке результатов на сервер...", Loggers.LogLevel.Info);
+
+                    _logger.Log($"isSuccess={ServerPoeTestResult.isSuccess}, isFull={ServerPoeTestResult.isFull}", Loggers.LogLevel.Debug);
+
+                    _logger.LogToUser("Отправка отчёта на сервер...", Loggers.LogLevel.Info);
+
+                    DeviceInfo di = Service.SendTestResult(ServerPoeTestResult, SessionId, true);
+
+                    if (di == null)
+                    {
+                        _logger.LogToUser("Ошибка: не удалось отправить результаты на сервер.", Loggers.LogLevel.Error);
+                        throw new Exception("Ошибка передачи результатов тестирования на сервер.");
+                    }
+
+                    _logger.LogToUser("Данные успешно отправлены.", Loggers.LogLevel.Success);
+
+                    ServerPoeTestResult.deviceSerial = di.serialNumber;
+                    _logger.LogToUser($"Серийный номер устройства, полученный от сервера: {di.serialNumber}", Loggers.LogLevel.Info);
+                    _logger.Log($"DeviceInfo: serialNumber={di.serialNumber}, hw_version={di.hw_version}, identifier={di.identifier}", Loggers.LogLevel.Debug);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogToUser($"Ошибка при отправке отчёта: {ex.Message}", Loggers.LogLevel.Error);
+                    _logger.Log($"StackTrace: {ex.StackTrace}", Loggers.LogLevel.Debug);
+                }
+            }
+            else
+            {
+                _logger.LogToUser("Генерация и отправка отчета отключены в настройках профиля.", Loggers.LogLevel.Warning);
+            }
+        }
+
+
+
         private async Task StopHard()
         {
-            /*isSwTestFull = false;
-            isSwTestSuccess = false;*/
+
 
             _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
             await _modbusService.WriteSingleRegisterAsync(2403, 0);
             await _modbusService.WriteSingleRegisterAsync(2492, 0);
-
-            await Task.Delay(500); // Даем время на обработку
-            //IsTestRunning = false;
-
-
-            // Отключаем питание платы
-
 
             _logger.LogToUser("Питание снято. Плату можно безопасно извлечь из стенда.", Loggers.LogLevel.Info);
         }

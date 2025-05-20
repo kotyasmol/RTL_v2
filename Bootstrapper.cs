@@ -4,6 +4,7 @@ using RTL.ViewModels;
 using RTL.Logger;
 using RTL.Properties;
 using System.IO;
+using RTL.Services;
 
 namespace RTL
 {
@@ -26,6 +27,14 @@ namespace RTL
             builder.Bind<Loggers>().WithKey("POE").ToInstance(poeLogger);
 
             // ViewModels — обычные бинды
+            //builder.Bind<IFlashProgrammerService>().To<FlashProgrammerService>().InSingletonScope();
+            builder.Bind<IFlashProgrammerService>().ToFactory(container =>
+            {
+                var poeLogger = container.Get<Loggers>("POE");
+                return new FlashProgrammerService(poeLogger);
+            }).InSingletonScope();
+
+
             builder.Bind<RtlSwViewModel>().ToSelf();
             builder.Bind<RtlPoeViewModel>().ToSelf();
             builder.Bind<SettingsViewModel>().ToSelf();

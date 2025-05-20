@@ -41,12 +41,22 @@ namespace RTL.ViewModels
         private CancellationTokenSource _monitoringCancellationTokenSource;
 
         public ICommand ConnectCommand { get; }
+        public ICommand OpenFlashProgramCommand { get; }
+        public ICommand OpenInstructionCommand { get; }
 
         private bool _isStandConnected;
         public bool IsStandConnected
         {
             get => _isStandConnected;
-            set => SetAndNotify(ref _isStandConnected, value);
+            set
+            {
+                if (SetAndNotify(ref _isStandConnected, value))
+                {
+                    (OpenFlashProgramCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                    (OpenInstructionCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                }
+            }
+
         }
         private PoeTestProfileModel _testConfig;
         public PoeTestProfileModel TestConfig
@@ -65,7 +75,7 @@ namespace RTL.ViewModels
         private bool _isPoeTestRunning = false;
         private bool _canStartTest = true;
         private CancellationTokenSource _testCts;
-
+        private bool CanExecuteFlashCommands() => IsStandConnected;
         private bool _isServerConnected;
 
         public bool IsServerConnected
@@ -76,12 +86,20 @@ namespace RTL.ViewModels
 
         public string SessionId;  //id сессии, без него не отправишь рез-ты
         public static TestResult ServerPoeTestResult;
+        private bool _isFirstFlashProgramming; // флаг для показа инструкции перед прошивкой 
 
-        public RtlPoeViewModel([Inject(Key = "POE")] Loggers logger)
+        private readonly IFlashProgrammerService _flashProgrammerService;
+
+        public RtlPoeViewModel([Inject(Key = "POE")] Loggers logger,IFlashProgrammerService flashProgrammerService)
         {
             _logger = logger;
+            _flashProgrammerService = flashProgrammerService;
             _modbusService = new ModbusService(_logger, () => RTL.Properties.Settings.Default.ComPoe);
             ConnectCommand = new RelayCommand(async () => await ToggleConnectionAsync());
+            OpenFlashProgramCommand = new AsyncRelayCommand(OpenFlashProgramAsync, () => IsStandConnected);
+            OpenInstructionCommand = new AsyncRelayCommand(OpenInstructionAsync, () => IsStandConnected);
+
+            _isFirstFlashProgramming = true;
         }
 
         private void ScrollToEnd(object sender, NotifyCollectionChangedEventArgs e)
@@ -211,6 +229,7 @@ namespace RTL.ViewModels
             IsServerConnected = false;
             return false;
         }
+
         private string GetSessionId(string login, string password, int timezone) // заглушка временная
         {
             string url = $"http://iccid.fort-telecom.ru/api/Api.svc/connect?login={login}&password={password}&timezone={timezone}";
@@ -257,6 +276,7 @@ namespace RTL.ViewModels
 
             return null;
         }
+
         private async Task<bool> TryLoadTestProfileAsync()
         {
             string testProfilePath = Properties.Settings.Default.RtlPoeProfilePath;
@@ -342,6 +362,21 @@ namespace RTL.ViewModels
                     }
                     else // RunButton == 0
                     {
+                        // Попытка закрыть Xgpro, если он запущен
+                        var xgpro = Process.GetProcessesByName("Xgpro").FirstOrDefault();
+                        if (xgpro != null && !xgpro.HasExited)
+                        {
+                            try
+                            {
+                                xgpro.Kill(); // Мгновенно завершает процесс
+                                _logger.LogToUser("Программа Xgpro была закрыта после выключения тумблера RUN.", Loggers.LogLevel.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogToUser($"Не удалось завершить Xgpro: {ex.Message}", Loggers.LogLevel.Error);
+                            }
+                        }
+
                         if (_isPoeTestRunning)
                         {
                             _logger.LogToUser("Тумблер RUN выключен. Прерывание теста.", Loggers.LogLevel.Warning);
@@ -353,6 +388,7 @@ namespace RTL.ViewModels
                             _canStartTest = true; // пользователь сбросил тумблер — разрешить новый запуск
                         }
                     }
+
 
                     PoeRegisters.NextButton = registers[2];
                     PoeRegisters.Enable52V = registers[3]; // подача питания
@@ -495,7 +531,6 @@ namespace RTL.ViewModels
                     isSuccess = false,
                     deviceIdent = "abracadabra123", // серийник платы
                     isFull = false,
-
                 };
                 //ServerPoeTestResult.deviceSerial = "31200001"; --- Эта ерунда всё ломает. никогда не указывать вручную. 
                 ServerPoeTestResult.AddSubTest($"название теста ", true, $"результаты измерений и мин/макс допуски");
@@ -505,18 +540,19 @@ namespace RTL.ViewModels
 
 
                 await _modbusService.WriteSingleRegisterAsync(2492, 1);
-                // === Подтест 1 === FLASH
-                if (TestConfig.FlashFirmwareAuto)
+                if (TestConfig?.FlashFirmwareAuto == true)
                 {
-                    _logger.LogToUser("Подтест 1: запуск...", Loggers.LogLevel.Info);
-                    if (!await RunPoeSubTest1Async(token)) return;
-                    _logger.LogToUser("Подтест 1: успешно завершён.", Loggers.LogLevel.Success);
+                    _logger.LogToUser("Прошивка Flash: запуск...", Loggers.LogLevel.Info);
+                    if (!await RunFlashProgrammingAsync(token)) return;
+                    _logger.LogToUser("Прошивка Flash успешно завершена.", Loggers.LogLevel.Success);
                 }
                 else
                 {
-                    _logger.LogToUser("Подтест 1: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
+                    _logger.LogToUser("Прошивка Flash отключена в профиле тестирования.", Loggers.LogLevel.Warning);
                     ServerPoeTestResult.isFull = false;
                 }
+
+
 
                 // === Подтест 2 === MCU
                 if (TestConfig.McuFirmwareAuto)
@@ -629,31 +665,64 @@ namespace RTL.ViewModels
                 _isPoeTestRunning = false;
             }
         }
-        
-        private async Task<bool> RunPoeSubTest1Async(CancellationToken token)
+
+
+
+        private async Task<bool> RunFlashProgrammingAsync(CancellationToken token)
         {
             try
             {
-                for (int i = 0; i < 3; i++)
+                token.ThrowIfCancellationRequested();
+
+                if (!TestConfig.FlashFirmwareAuto)
                 {
-                    token.ThrowIfCancellationRequested();
-                    _logger.LogToUser($"Подтест 1 — шаг {i + 1}/3...", Loggers.LogLevel.Info);
-                    await Task.Delay(400, token);
+                    _logger.LogToUser("Прошивка Flash отключена в профиле тестирования.", Loggers.LogLevel.Warning);
+                    ServerPoeTestResult.isFull = false;
+                    return true;
                 }
 
-                return true;
+                _logger.LogToUser("Прошивка flash: запуск...", Loggers.LogLevel.Info);
+
+                var context = new FlashProgrammingContext
+                {
+                    FlashProgramPath = Properties.Settings.Default.FlashProgramPath,
+                    ProjectFilePath = TestConfig.FlashXgproPath,
+                    InstructionPath = TestConfig.FlashInstructionPath,
+                    AutoMode = TestConfig.FlashFirmwareAuto,
+                    IsFirstRun = _isFirstFlashProgramming,
+                    FlashDelaySeconds = TestConfig.FlashDelay
+                };
+
+                var success = await _flashProgrammerService.StartProgrammingAsync(context, token);
+
+                if (success)
+                {
+                    _logger.LogToUser("Прошивка flash успешно завершена.", Loggers.LogLevel.Success);
+                    _isFirstFlashProgramming = false;
+                    return true;
+                }
+
+                _logger.LogToUser("Прошивка flash завершена с ошибкой.", Loggers.LogLevel.Error);
+
+                await StopHard();
+                return false;
             }
             catch (OperationCanceledException)
             {
-                _logger.LogToUser("Подтест 1 был отменён.", Loggers.LogLevel.Warning);
+                _logger.LogToUser("Прошивка микросхемы была отменена пользователем.", Loggers.LogLevel.Warning);
+
+                await StopHard();
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogToUser($"Ошибка в подтесте 1: {ex.Message}", Loggers.LogLevel.Error);
+                _logger.LogToUser($"Ошибка при выполнении прошивки: {ex.Message}", Loggers.LogLevel.Error);
+                await StopHard();
                 return false;
             }
         }
+
+
 
         private async Task<bool> RunPoeSubTest2Async(CancellationToken token)
         {
@@ -1122,6 +1191,56 @@ namespace RTL.ViewModels
         }
 
 
+        private async Task OpenFlashProgramAsync()
+        {
+            await Task.Yield(); // Чтобы не было warning о синхронном методе
+
+            var flashPath = Properties.Settings.Default.FlashProgramPath;
+            if (!File.Exists(flashPath))
+            {
+                _logger.LogToUser($"Программа прошивки не найдена: {flashPath}", Loggers.LogLevel.Error);
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = flashPath,
+                    UseShellExecute = true
+                });
+                _logger.LogToUser("Открыта программа Xgpro для ручной прошивки.", Loggers.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при запуске программы: {ex.Message}", Loggers.LogLevel.Error);
+            }
+        }
+        private async Task OpenInstructionAsync()
+        {
+            await Task.Yield(); // Нужен, чтобы метод считался "асинхронным"
+
+            var pdfPath = TestConfig.FlashInstructionPath;
+            if (!File.Exists(pdfPath))
+            {
+                _logger.LogToUser($"Файл инструкции не найден: {pdfPath}", Loggers.LogLevel.Error);
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = pdfPath,
+                    UseShellExecute = true
+                });
+                _logger.LogToUser("Открыта инструкция по прошивке.", Loggers.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при открытии инструкции: {ex.Message}", Loggers.LogLevel.Error);
+            }
+        }
 
         private async Task StopHard()
         {

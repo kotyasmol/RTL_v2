@@ -29,7 +29,7 @@
 
 
         <!-- ВЕРХНЯЯ ЧАСТЬ -->
-        <Grid Grid.Row="0" Margin="0,0,0,128">
+        <Grid Grid.Row="0" Margin="0,0,0,110">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <!-- Картинка -->
@@ -39,7 +39,7 @@
             <!-- Картинка с Canvas -->
             <Grid Grid.Column="0">
                 <Viewbox Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top">
-                    <Grid Width="950" Height="450">
+                    <Grid Width="900" Height="400">
                         <!-- Размер оригинального изображения -->
                         <Image Source="/TFortisBoard;component/Resources/Images/PlateImages/RTL-POE.png"
                    Stretch="Fill" Margin="10,10,10,0"/>
@@ -115,7 +115,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Плашка 52V -->
-                <Border Grid.Column="2" Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="0,0,0,0" Padding="10">
+                <Border Grid.Column="2" Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="0,0,0,0" Padding="10" VerticalAlignment="Top">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -137,7 +137,60 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+                <!-- Плашка 3.3V -->
+                <Border Grid.Column="2" Width="150" Height="60" CornerRadius="10" Background="#1562FE" Margin="0,70,0,0" Padding="10" VerticalAlignment="Top">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="40" Height="40" CornerRadius="20" Background="#0F58DC"
+                 VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="3.3V" FontWeight="Black" Foreground="White"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding StandRegisters.V52Display}"
+                         FontSize="22" FontWeight="Black" Foreground="White"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding TestConfig.K5_52V_Min}" FontSize="12" Foreground="White"/>
+                                <TextBlock Text=" - " FontSize="12" Foreground="White"/>
+                                <TextBlock Text="{Binding TestConfig.K5_52V_Max}" FontSize="12" Foreground="White"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
 
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,150,0,0" >
+                    <!-- Основная кнопка прошивки -->
+                    <Button Content="📄FLASH"
+                            Command="{Binding OpenFlashProgramCommand}"
+                            IsEnabled="{Binding IsTestProfileLoaded}"
+                            Padding="12,6"
+                            Width="105"
+                            Height="40"
+                            FontWeight="Bold"
+                            Background="#1562FE"
+                            Foreground="White"
+                            ToolTip="Открыть программу прошивки"/>
+
+                    <!-- Кнопка-инструкция (в кружке) -->
+                    <Button Content="ℹ"
+                            Command="{Binding OpenInstructionCommand}"
+                            IsEnabled="{Binding IsTestProfileLoaded}"
+                            Width="40"
+                            Height="40"
+                            FontWeight="Bold"
+                            FontSize="16"
+                            Background="#1562FE"
+                            Foreground="White"
+                            ToolTip="Открыть инструкцию по прошивке"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            BorderThickness="0"
+                            Margin="5,0,0,0"
+                            Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}"/>
+                </StackPanel>
                 <!-- Панель управления T -->
                 <StackPanel Grid.Column="0" Margin="10,0,0,0" VerticalAlignment="Top">
                     <!-- Кнопка Подключение -->
@@ -168,8 +221,13 @@
                         <TextBlock Text="Профиль" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12" FontWeight="Bold"/>
                     </StackPanel>
                     <!-- Тут можно вставить кнопки: Сервер, Modbus, DUT, Run -->
+                    
                 </StackPanel>
+                
+                
             </Grid>
+           
+
         </Grid>
     </Grid>
 </UserControl>

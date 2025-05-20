@@ -46,11 +46,28 @@ namespace RTL.Models
         }
 
         private string _flashXgproPath;
-        [JsonProperty("flash_xgpro_path")]
+        [JsonProperty("flash_mpj_path")]
         public string FlashXgproPath
         {
             get => _flashXgproPath;
             set => SetAndNotify(ref _flashXgproPath, value);
+        }
+        
+
+        private string _flashInstructionPath;
+        [JsonProperty("flash_instruction_path")]
+        public string FlashInstructionPath
+        {
+            get => _flashInstructionPath;
+            set => SetAndNotify(ref _flashInstructionPath, value);
+        }
+
+        private int _flashDelay;
+        [JsonProperty("flash_delay_seconds")]
+        public int FlashDelay
+        {
+            get => _flashDelay;
+            set => SetAndNotify(ref _flashDelay, value);
         }
 
         private bool _mcuFirmwareAuto;

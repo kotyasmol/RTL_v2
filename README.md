@@ -1,7 +1,6 @@
-# Tutorial: RTL_v2
+# RTL
 
-This project is a **test application** designed to interface with hardware **test stands** for different electronics boards. It allows users to **configure and run automated tests**, communicate with the hardware using *Modbus*, *log* events, generate *reports*, and *print labels* based on defined *test profiles*.
-
+Этот проект представляет собой тестовое приложение, разработанное для взаимодействия с аппаратными тестовыми стендами для различных электронных плат. Оно позволяет пользователям настраивать и запускать автоматические тесты, осуществлять связь с оборудованием по протоколу Modbus, вести журнал событий, формировать отчёты и печать этикеток в соответствии с заданными тестовыми профилями.
 
 ## Visual Overview
 

@@ -32,6 +32,10 @@ using Newtonsoft.Json.Linq;
 using RTL.Services;
 using System.Management;
 using System.Reflection;
+using StyletIoC;
+using System.Text.RegularExpressions;
+using System.Text.Json;
+using JsonException = System.Text.Json.JsonException;
 namespace RTL.ViewModels
 {
     public class RtlSwViewModel : Screen
@@ -45,7 +49,10 @@ namespace RTL.ViewModels
 
         public ICommand OpenFlashProgramCommand { get; }
         public ICommand OpenSwdProgramCommand { get; }
+        public ICommand OpenInstructionCommand { get; }
 
+        private readonly IFlashProgrammerService _flashProgrammerService;
+        private readonly IMcuProgrammerService _mcuProgrammerService; 
 
         #region логи
         private readonly Loggers _logger;
@@ -133,7 +140,7 @@ namespace RTL.ViewModels
                 Task.Run(() => MonitorStandAsync());
 
                 IsStandConnected = true;
-                _logger.LogToUser($"Подключен СТЕНД RTL-SW, серийный номер стенда:", Loggers.LogLevel.Success);
+                _logger.LogToUser($"Подключен СТЕНД RTL-SW, серийный номер стенда: {StandRegisters.StandSerialNumber}", Loggers.LogLevel.Success);
             }
             catch (Exception ex)
             {
@@ -272,7 +279,7 @@ namespace RTL.ViewModels
         }
 
 
-        public async Task WriteToRegisterWithRetryAsync(ushort register, ushort value, int retries = 3)
+        public async Task<bool> WriteToRegisterWithRetryAsync(ushort register, ushort value, int retries = 3)
         {
             for (int attempt = 1; attempt <= retries; attempt++)
             {
@@ -281,17 +288,16 @@ namespace RTL.ViewModels
                     if (!await TryReconnectModbusAsync())
                     {
                         _logger.LogToUser("Не удалось переподключиться к Modbus.", LogLevel.Error);
-                        return;
+                        return false; // Возвращаем false, если не смогли переподключиться
                     }
-
                 }
 
                 try
                 {
-                    _logger.Log($"Попытка записи в {register}: {value}", LogLevel.Debug); // <---- Новый лог
+                    _logger.Log($"Попытка записи в {register}: {value}", LogLevel.Debug);
                     _modbusMaster.WriteSingleRegister(1, register, value);
                     _logger.Log($"Запись успешна: {register} = {value}", LogLevel.Debug);
-                    return; // Успешная запись
+                    return true; // Успешная запись
                 }
                 catch (Exception ex)
                 {
@@ -302,6 +308,7 @@ namespace RTL.ViewModels
 
             _logger.LogToUser($"Ошибка: не удалось записать {value} в {register} после {retries} попыток.", LogLevel.Error);
             await StopHard();
+            return false; // Все попытки неудачны
         }
 
         private void DisconnectModbus()
@@ -359,22 +366,18 @@ namespace RTL.ViewModels
 
         public async Task<bool> WaitForDUTReadyAsync(CancellationToken cancellationToken, bool wasFlashed = false, int noLogTimeoutSeconds = 100, int maxWaitTimeSeconds = 1200)
         {
-            //await WriteToRegisterWithRetryAsync(2301, 1);
             await Task.Delay(2000, cancellationToken);
 
             try
             {
                 if (!await TryInitializeDutComPortAsync(cancellationToken))
-                {
                     throw new InvalidOperationException("COM-порт для DUT не открыт.");
-                }
 
                 _logger.LogToUser("Ожидание ответа от платы...", LogLevel.Info);
 
                 DateTime startTime = DateTime.Now;
                 DateTime lastLogTime = DateTime.Now;
                 bool successPromptShown = false;
-                bool flashedOnce = false; // Флаг, который не даёт прошивать DUT повторно
 
                 while ((DateTime.Now - startTime).TotalSeconds < maxWaitTimeSeconds)
                 {
@@ -385,7 +388,7 @@ namespace RTL.ViewModels
                         return false;
                     }
 
-                    await Task.Delay(500, cancellationToken); // Проверка каждые 500 мс
+                    await Task.Delay(500, cancellationToken);
 
                     if (_serialPortDut.BytesToRead > 0)
                     {
@@ -404,46 +407,122 @@ namespace RTL.ViewModels
                     {
                         _serialPortDut.Write("\n");
                         _logger.Log("Нет новых логов. Отправлена команда \\n для проверки готовности.", LogLevel.Debug);
+                        await Task.Delay(2000, cancellationToken);
+                        _serialPortDut.Write("\n");
                         successPromptShown = true;
 
                         await Task.Delay(1000, cancellationToken);
-                        _serialPortDut.Write("ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'\n");
-                        _logger.Log("Отправлена команда ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'", LogLevel.Debug);
 
-                        await Task.Delay(2000, cancellationToken); // Ждём ответ
-
-                        if (_serialPortDut.BytesToRead > 0)
+                        const int maxAttempts = 2;
+                        for (int attempt = 1; attempt <= maxAttempts; attempt++)
                         {
-                            string response = _serialPortDut.ReadExisting();
-                            _logger.Log($"Ответ на команду ubus: {response.Trim()}", LogLevel.Debug);
+                            _serialPortDut.DiscardInBuffer();
+                            _serialPortDut.Write("ubus call tf_hwsys getParam '{\"name\":\"SW_VERS\"}'\n");
+                            _logger.Log($"[{attempt}/{maxAttempts}] Отправлена команда ubus call tf_hwsys getParam '{{\"name\":\"SW_VERS\"}}'", LogLevel.Debug);
 
-                            if (!response.Contains("\"SW_VERS\": \"0\""))
+                            await Task.Delay(2000, cancellationToken);
+
+                            if (_serialPortDut.BytesToRead > 0)
                             {
-                                _logger.Log("Обнаружен корректный ответ от ubus. DUT готов к работе.", LogLevel.Info);
-                                _logger.LogToUser("DUT готов к работе.", LogLevel.Success);
-                                return true;
-                            }
+                                string response = _serialPortDut.ReadExisting();
+                                _logger.Log($"[{attempt}/{maxAttempts}] Ответ на команду ubus: {response.Trim()}", LogLevel.Debug);
 
-                            if (response.Contains("\"SW_VERS\": \"0\""))
-                            {
+                                string? version = ExtractVersionFromUbusResponse(response, "SW_VERS");
 
+                                if (version == null)
                                 {
-                                    _logger.LogToUser("Ошибка: SW_VERS = 0 после прошивки. Проверьте файл (.bin) прошивки и перезапустите тест.", LogLevel.Error);
-                                    return false;
+                                    _logger.LogToUser($"[{attempt}/{maxAttempts}] Не удалось извлечь версию SW_VERS из ответа ubus.", LogLevel.Warning);
+                                    if (attempt == maxAttempts)
+                                    {
+                                        _logger.LogToUser("Ошибка: не удалось получить версию прошивки MCU.", LogLevel.Error);
+                                        return false;
+                                    }
 
+                                    await Task.Delay(500, cancellationToken);
+                                    continue;
                                 }
 
+                                _logger.LogToUser($"Извлечённая версия SW_VERS: {version}", LogLevel.Debug);
+                                _logger.LogToUser($"Требуемая версия прошивки MCU: {TestConfig.RequiredMcuFirmwareVersion}", LogLevel.Debug);
+
+                                if (IsVersionGreaterOrEqual(version, TestConfig.RequiredMcuFirmwareVersion))
+                                {
+                                    _logger.Log("Версия прошивки MCU корректна. DUT готов к работе.", LogLevel.Info);
+                                    _logger.LogToUser("DUT готов к работе.", LogLevel.Success);
+                                    return true;
+                                }
+                                else
+                                {
+                                    _logger.LogToUser($"Ошибка: версия прошивки MCU ({version}) ниже требуемой ({TestConfig.RequiredMcuFirmwareVersion}).", LogLevel.Error);
+                                    return false;
+                                }
+                            }
+                            else
+                            {
+                                _logger.LogToUser($"[{attempt}/{maxAttempts}] Нет ответа после команды ubus. Повтор...", LogLevel.Warning);
+                                await Task.Delay(500, cancellationToken);
                             }
                         }
                     }
                 }
 
-                _logger.LogToUser($"Плата не завершила загрузку за {maxWaitTimeSeconds} секунд.", LogLevel.Error);
+                _logger.LogToUser("Таймаут ожидания ответа от платы.", LogLevel.Warning);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogToUser($"Ошибка при ожидании старта платы: {ex.Message}", LogLevel.Error);
+                _logger.LogToUser($"Ошибка при ожидании DUT: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+        }
+
+
+        private string? ExtractVersionFromUbusResponse(string response, string paramName)
+        {
+            try
+            {
+                // Пример: {"SW_VERS": "0"} или {"SW_VERS":"1.2.3"}
+                // Поддержка версии как строки или просто числа в кавычках
+                var pattern = $"\"{paramName}\"\\s*:\\s*\"([^\"]*)\"";
+                var match = Regex.Match(response, pattern);
+                if (match.Success)
+                    return match.Groups[1].Value;
+
+                // Если не нашли версию в кавычках — попробуем найти без кавычек (например, "SW_VERS": 0)
+                pattern = $"\"{paramName}\"\\s*:\\s*(\\d+(\\.\\d+)*)";
+                match = Regex.Match(response, pattern);
+                if (match.Success)
+                    return match.Groups[1].Value;
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+
+
+        private bool IsVersionGreaterOrEqual(string actual, string required)
+        {
+            try
+            {
+                var actualParts = actual.Split('.').Select(int.Parse).ToArray();
+                var requiredParts = required.Split('.').Select(int.Parse).ToArray();
+
+                int maxLength = Math.Max(actualParts.Length, requiredParts.Length);
+                for (int i = 0; i < maxLength; i++)
+                {
+                    int a = i < actualParts.Length ? actualParts[i] : 0;
+                    int b = i < requiredParts.Length ? requiredParts[i] : 0;
+                    if (a > b) return true;
+                    if (a < b) return false;
+                }
+                return true;
+            }
+            catch
+            {
                 return false;
             }
         }
@@ -644,41 +723,69 @@ namespace RTL.ViewModels
             try
             {
                 string testProfilePath = Properties.Settings.Default.RtlSwProfilePath;
+
                 if (File.Exists(testProfilePath))
                 {
                     string json = await File.ReadAllTextAsync(testProfilePath);
-                    TestConfig = JsonConvert.DeserializeObject<ProfileTestModel>(json) ?? new ProfileTestModel();
-                    OnPropertyChanged(nameof(TestConfig));
-                    IsTestProfileLoaded = true;
-                    _logger.LogToUser($"Файл  тестирования загружен: {testProfilePath}", LogLevel.Success);
+                    var config = JsonConvert.DeserializeObject<ProfileTestModel>(json) ?? new ProfileTestModel();
+
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        TestConfig = config;
+                        OnPropertyChanged(nameof(TestConfig));
+                        IsTestProfileLoaded = true;
+
+                        // Подписка на PropertyChanged если надо
+                        TestConfig.PropertyChanged += ProfileTest_PropertyChanged;
+
+                        (OpenInstructionCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                    });
+
+                    _logger.LogToUser($"Файл тестирования загружен: {testProfilePath}", LogLevel.Success);
                     return true;
                 }
                 else
                 {
-                    TestConfig = new ProfileTestModel();
-                    OnPropertyChanged(nameof(TestConfig));
-                    IsTestProfileLoaded = false;
-                    _logger.LogToUser($"Файл  тестирования {testProfilePath} не найден.", LogLevel.Warning);
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        TestConfig = new ProfileTestModel();
+                        OnPropertyChanged(nameof(TestConfig));
+                        IsTestProfileLoaded = false;
+                        (OpenInstructionCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                    });
+
+                    _logger.LogToUser($"Файл тестирования {testProfilePath} не найден.", LogLevel.Warning);
                     return false;
                 }
             }
             catch (JsonException ex)
             {
-                TestConfig = new ProfileTestModel();
-                OnPropertyChanged(nameof(TestConfig));
-                IsTestProfileLoaded = false;
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    TestConfig = new ProfileTestModel();
+                    OnPropertyChanged(nameof(TestConfig));
+                    IsTestProfileLoaded = false;
+                    (OpenInstructionCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                });
+
                 _logger.LogToUser($"Ошибка обработки JSON: {ex.Message}", LogLevel.Error);
                 return false;
             }
             catch (Exception ex)
             {
-                TestConfig = new ProfileTestModel();
-                OnPropertyChanged(nameof(TestConfig));
-                IsTestProfileLoaded = false;
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    TestConfig = new ProfileTestModel();
+                    OnPropertyChanged(nameof(TestConfig));
+                    IsTestProfileLoaded = false;
+                    (OpenInstructionCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                });
+
                 _logger.LogToUser($"Ошибка при загрузке профиля тестирования: {ex.Message}", LogLevel.Error);
                 return false;
             }
         }
+
 
 
         #endregion Профиль тестирования
@@ -711,6 +818,7 @@ namespace RTL.ViewModels
                     var registers = await _modbusMaster.ReadHoldingRegistersAsync(1, 2300, 85);
                     #region обновление значений
                     // Обновляем значения в модели StandRegistersModel
+                    StandRegisters.StandSerialNumber = registers[0];
                     StandRegisters.V52Out = registers[1];
                     StandRegisters.V55Out = registers[2];
                     StandRegisters.Sensor1Out = registers[3];
@@ -966,7 +1074,7 @@ namespace RTL.ViewModels
 
                     RtlStatus = 3;
                     isSwTestSuccess = false;
-                    
+
                     await StopHard();
                     _logger.LogToUser($"Тест завершен: {(ServerTestResult.isSuccess ? "УСПЕШНО" : "НЕУСПЕШНО")}", ServerTestResult.isSuccess ? LogLevel.Success : LogLevel.Error);
                     await LoadSwReport();
@@ -987,7 +1095,7 @@ namespace RTL.ViewModels
 
                 await WriteToRegisterWithRetryAsync(2301, 1); //-----------------------------------------подача питания перед прошивкой (52)
                 // FLASH прошивка
-                if (!await StartProgrammingAsync(cancellationToken))
+                if (!await RunFlashProgrammingAsync(cancellationToken))
                 {
                     FlashStatus = 3;
                     RtlStatus = 3;
@@ -1015,7 +1123,7 @@ namespace RTL.ViewModels
                     return false;
                 }
 
-                if (!TestConfig.IsFlashProgrammingEnabled && !TestConfig.IsMcuProgrammingEnabled) // ------------------------ не перезагружаем плату если не прошивали 
+                if (!TestConfig.FlashFirmwareAuto && !TestConfig.IsMcuProgrammingEnabled) // ------------------------ не перезагружаем плату если не прошивали 
                 {
                     await WriteToRegisterWithRetryAsync(2301, 0);
                     await WriteToRegisterWithRetryAsync(2302, 0);
@@ -1144,30 +1252,30 @@ namespace RTL.ViewModels
 
         private async Task<bool> RunSubTestK5Async(ushort startRegister, Func<ushort> getStatus, string testName, StageK5TestReport report, CancellationToken cancellationToken)
         {
-            await Task.Delay(2000);
+            await Task.Delay(2000); // Начальная задержка перед запуском теста
             try
             {
+                await WriteToRegisterWithRetryAsync(startRegister, 1); // Старт подтеста
 
-
-                await WriteToRegisterWithRetryAsync(startRegister, 1);
-
+                // Ждём пока тест стартует (статус 1)
                 while (getStatus() != 1)
                 {
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
-                        K5TestStatus = (ushort)3;
+                        K5TestStatus = 3;
                         return false;
                     }
                     await Task.Delay(500);
                 }
 
+                // Ожидание завершения теста
                 while (true)
                 {
                     if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
                     {
                         _logger.LogToUser($"Тест {testName} прерван (кнопка RUN переведена в положение 0).", LogLevel.Warning);
-                        K5TestStatus = (ushort)3;
+                        K5TestStatus = 3;
                         return false;
                     }
 
@@ -1181,6 +1289,9 @@ namespace RTL.ViewModels
                             await Task.Delay(2000);
                             status = getStatus();
                         }
+
+                        // ⏱ Ключевая задержка перед чтением измерений
+                        await Task.Delay(500); // Даём устройству время записать актуальные данные
 
                         bool success = status == 2;
 
@@ -1206,16 +1317,17 @@ namespace RTL.ViewModels
                         return success;
                     }
 
-                    await Task.Delay(200);
+                    await Task.Delay(200); // период опроса статуса
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время теста {testName}: {ex.Message}", LogLevel.Error);
-                K5TestStatus = (ushort)3;
+                K5TestStatus = 3;
                 return false;
             }
         }
+
 
 
 
@@ -1373,179 +1485,63 @@ namespace RTL.ViewModels
         #endregion VCC
         #region прошивка flash
         private bool _isFirstFlashProgramming;
-        public async Task<bool> StartProgrammingAsync(CancellationToken cancellationToken)
+        private async Task<bool> RunFlashProgrammingAsync(CancellationToken token)
         {
-            if (!TestConfig.IsFlashProgrammingEnabled)
-            {
-                _logger.LogToUser("Прошивка FLASH отключена в настройках.", LogLevel.Warning);
-                ReportModel.FlashReport.FlashResult = false; 
-                return true;
-            }
-
-            if (_isFirstFlashProgramming && TestConfig.IsFlashProgrammingEnabled)
-            {
-                await OpenFlashProgramAsync();
-                return true;
-            }
-
-            await WriteToRegisterWithRetryAsync(2307, 1);
-
-            string programPath = Properties.Settings.Default.FlashProgramPath;
-            string projectPath = Properties.Settings.Default.FlashFirmwarePath;
-            int delay = TestConfig.FlashDelay * 1000;
-
-            if (string.IsNullOrWhiteSpace(programPath) || !File.Exists(programPath))
-            {
-                _logger.LogToUser($"Программа для прошивки не найдена: {programPath}", LogLevel.Error);
-                ReportModel.FlashReport.FlashResult = false;
-                ReportModel.FlashReport.FlashErrorMessage = "Программа для прошивки не найдена";
-                ServerTestResult.AddSubTest($"прошивка Flash", false, $"{ReportModel.FlashReport.FlashErrorMessage}; Path ={projectPath}");
-
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
-            {
-                _logger.LogToUser($"Файл проекта для прошивки не найден: {projectPath}", LogLevel.Error);
-                ReportModel.FlashReport.FlashResult = false;
-                ReportModel.FlashReport.FlashErrorMessage = "Файл проекта для прошивки не найден";
-                ServerTestResult.AddSubTest($"прошивка Flash", false, $"{ReportModel.FlashReport.FlashErrorMessage}; Path ={projectPath}");
-                return false;
-            }
-
-            Process programProcess = null;
-
             try
             {
-                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
-                    throw new OperationCanceledException("Прошивка отменена пользователем.");
+                token.ThrowIfCancellationRequested();
 
-                programProcess = Process.GetProcessesByName("Xgpro").FirstOrDefault();
-                if (programProcess == null)
+                if (!TestConfig.FlashFirmwareAuto)
                 {
-                    _logger.LogToUser("Запуск программы прошивки...", LogLevel.Info);
-                    programProcess = Process.Start(programPath);
-                    await Task.Delay(5000, cancellationToken);
-                }
-                else
-                {
-                    _logger.LogToUser("Программа прошивки уже запущена. Переключение фокуса...", LogLevel.Info);
+                    _logger.LogToUser("Прошивка Flash отключена в профиле тестирования.", Loggers.LogLevel.Warning);
+                    ServerTestResult.isFull = false;
+                    return true;
                 }
 
-                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
-                    throw new OperationCanceledException("Прошивка отменена пользователем.");
+                _logger.LogToUser("Прошивка flash: запуск...", Loggers.LogLevel.Info);
 
-                IntPtr hWnd = programProcess.MainWindowHandle;
-                if (hWnd == IntPtr.Zero)
+                var context = new FlashProgrammingContext
                 {
-                    _logger.LogToUser("Ошибка: Не удалось найти главное окно программы.", LogLevel.Error);
-                    ReportModel.FlashReport.FlashResult = false;
-                    ReportModel.FlashReport.FlashErrorMessage = "Не удалось найти главное окно программы";
-                    ServerTestResult.AddSubTest($"прошивка Flash", false, $"{ReportModel.FlashReport.FlashErrorMessage}; Path ={projectPath}");
-                    return false;
+                    FlashProgramPath = Properties.Settings.Default.FlashProgramPath,
+                    ProjectFilePath = TestConfig.FlashXgproPath,
+                    InstructionPath = TestConfig.FlashInstructionPath,
+                    AutoMode = TestConfig.FlashFirmwareAuto,
+                    IsFirstRun = _isFirstFlashProgramming,
+                    FlashDelaySeconds = TestConfig.FlashDelay
+                };
+
+                var success = await _flashProgrammerService.StartProgrammingAsync(context, token);
+
+                if (success)
+                {
+                    _logger.LogToUser("Прошивка flash успешно завершена.", Loggers.LogLevel.Success);
+                    _isFirstFlashProgramming = false;
+                    return true;
                 }
 
-                SetForegroundWindow(hWnd);
-
-                InputSimulator sim = new InputSimulator();
-
-                sim.Keyboard.ModifiedKeyStroke(VirtualKeyCode.MENU, VirtualKeyCode.VK_P);
-                await Task.Delay(500, cancellationToken);
-                sim.Keyboard.KeyPress(VirtualKeyCode.VK_O);
-                await Task.Delay(2000, cancellationToken);
-
-                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
-                    throw new OperationCanceledException("Прошивка отменена пользователем.");
-
-                string fileName = Path.GetFileName(projectPath);
-                _logger.LogToUser($"Вставка имени файла: {fileName}", LogLevel.Debug);
-
-                try
-                {
-                    var staThread = new Thread(() =>
-                    {
-                        try
-                        {
-                            Clipboard.SetText(fileName);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogToUser($"Ошибка при установке текста в буфер обмена: {ex.Message}", LogLevel.Error);
-                        }
-                    });
-
-                    staThread.SetApartmentState(ApartmentState.STA);
-                    staThread.Start();
-                    staThread.Join();
-
-                    sim.Keyboard.ModifiedKeyStroke(VirtualKeyCode.CONTROL, VirtualKeyCode.VK_V);
-                    await Task.Delay(500, cancellationToken);
-                    sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogToUser($"Ошибка при вставке пути файла: {ex.Message}", LogLevel.Error);
-                    ReportModel.FlashReport.FlashResult = false;
-                    ReportModel.FlashReport.FlashErrorMessage = $"Ошибка вставки пути: {ex.Message}";
-                    ServerTestResult.AddSubTest($"прошивка Flash", false, $"{ReportModel.FlashReport.FlashErrorMessage}; Path ={projectPath}");
-                    return false;
-                }
-
-                await Task.Delay(5000, cancellationToken);
-                sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
-
-                sim.Keyboard.ModifiedKeyStroke(VirtualKeyCode.MENU, VirtualKeyCode.VK_D);
-                await Task.Delay(200, cancellationToken);
-                sim.Keyboard.KeyPress(VirtualKeyCode.VK_P);
-                await Task.Delay(5000, cancellationToken);
-
-                if (cancellationToken.IsCancellationRequested || StandRegisters.RunBtn == 0)
-                    throw new OperationCanceledException("Прошивка отменена пользователем.");
-
-                sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
-                await Task.Delay(500, cancellationToken);
-                sim.Keyboard.KeyPress(VirtualKeyCode.RETURN);
-                await Task.Delay(180000, cancellationToken); // Задержка 180 секунд
-                _logger.LogToUser("Прошивка завершена. Закрытие программы прошивки...", LogLevel.Info);
-                if (programProcess != null && !programProcess.HasExited)
-                {
-                    programProcess.Kill();
-                    _logger.LogToUser("Программа прошивки успешно закрыта.", LogLevel.Info);
-                }
-
-                IntPtr mainWindowHandle = Process.GetCurrentProcess().MainWindowHandle;
-                SetForegroundWindow(mainWindowHandle);
-                _logger.LogToUser("Переключение обратно на стенд завершено.", LogLevel.Info);
-
-                ReportModel.FlashReport.FlashResult = true;
-                ServerTestResult.AddSubTest($"прошивка Flash", true, $"Path={projectPath}");
-                return true;
+                _logger.LogToUser("Прошивка flash завершена с ошибкой.", Loggers.LogLevel.Error);
+                await StopHard();
+                return false;
             }
             catch (OperationCanceledException)
             {
-                _logger.LogToUser("Прошивка была прервана пользователем.", LogLevel.Warning);
-                ReportModel.FlashReport.FlashResult = false;
-                ReportModel.FlashReport.FlashErrorMessage = "Прошивка отменена пользователем.";
-                ServerTestResult.AddSubTest($"прошивка Flash", false, $"{ReportModel.FlashReport.FlashErrorMessage}; Path ={projectPath}");
+                _logger.LogToUser("Прошивка микросхемы была отменена пользователем.", Loggers.LogLevel.Warning);
+                await StopHard();
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogToUser($"Ошибка во время прошивки: {ex.Message}", LogLevel.Error);
-                ReportModel.FlashReport.FlashResult = false;
-                ReportModel.FlashReport.FlashErrorMessage = ex.Message;
-                ServerTestResult.AddSubTest($"прошивка Flash", false, $"{ReportModel.FlashReport.FlashErrorMessage}; Path ={projectPath}");
+                _logger.LogToUser($"Ошибка при выполнении прошивки: {ex.Message}", Loggers.LogLevel.Error);
+                await StopHard();
                 return false;
             }
         }
 
 
-
-        [DllImport("user32.dll")]
-        private static extern bool SetForegroundWindow(IntPtr hWnd);
-
         #endregion прошивка flash
         #region прошивка 2
+
+
 
         private async Task<bool> FlashMcuAsync(CancellationToken cancellationToken)
         {
@@ -1558,95 +1554,41 @@ namespace RTL.ViewModels
             if (StandRegisters.V52Out == 0)
             {
                 _logger.LogToUser("Подача питания на V52 ...", LogLevel.Debug);
-                await WriteToRegisterWithRetryAsync(2301, 1);
-            }
-            string flashToolPath = Properties.Settings.Default.SwdProgramPath; // Путь к flash.bat  
-            string firmwarePath = Properties.Settings.Default.SwdFirmwarePath; // Путь к .bin
-            string workingDirectory = Path.GetDirectoryName(flashToolPath); // Рабочая директория
-
-            _logger.Log("Подготовка к прошивке MCU...", LogLevel.Info);
-
-            if (!File.Exists(flashToolPath))
-            {
-                _logger.LogToUser($"Ошибка: Не найден скрипт прошивки по пути {flashToolPath}.", LogLevel.Error);
-
-                ServerTestResult.AddSubTest($"прошивка SWD", false, $"скрипт прошивки {flashToolPath} не найден");
-                return false;
-            }
-
-            if (string.IsNullOrEmpty(firmwarePath) || !File.Exists(firmwarePath))
-            {
-                _logger.LogToUser($"Ошибка: Файл прошивки {firmwarePath} не найден.", LogLevel.Error);
-                ServerTestResult.AddSubTest($"прошивка SWD", false, $"Файл прошивки {firmwarePath} не найден");
-                return false;
-            }
-
-            try
-            {
-                _logger.LogToUser("Включаем питание на стенде перед прошивкой...", LogLevel.Info);
-                await WriteToRegisterWithRetryAsync(2301, 1, 3);
-                await Task.Delay(1000, cancellationToken); // Ждём 1 секунду перед прошивкой
-
-                string formattedFirmwarePath = $"\"{firmwarePath.Replace("\\", "/")}\"";
-                _logger.LogToUser($"Используемый файл прошивки: {firmwarePath}", LogLevel.Debug);
-                _logger.LogToUser("Запуск прошивки MCU...", LogLevel.Info);
-
-                var processStartInfo = new ProcessStartInfo
+                bool powerOnResult = await WriteToRegisterWithRetryAsync(2301, 1);
+                if (!powerOnResult)
                 {
-                    FileName = flashToolPath,
-                    Arguments = formattedFirmwarePath,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WorkingDirectory = workingDirectory
-                };
-
-                _logger.LogToUser($"Запуск процесса: {flashToolPath}", LogLevel.Debug);
-                _logger.LogToUser($"Аргументы процесса: {processStartInfo.Arguments}", LogLevel.Debug);
-                _logger.LogToUser($"Рабочая директория: {processStartInfo.WorkingDirectory}", LogLevel.Debug);
-
-                DateTime startTime = DateTime.Now;
-
-                using (var process = new Process { StartInfo = processStartInfo })
-                {
-                    process.OutputDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) _logger.Log(e.Data, LogLevel.Debug); };
-                    process.ErrorDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) _logger.Log(e.Data, LogLevel.Error); };
-
-                    process.Start();
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-
-                    _logger.LogToUser("Ожидание завершения прошивки...", LogLevel.Info);
-                    await process.WaitForExitAsync(cancellationToken);
-
-                    DateTime endTime = DateTime.Now;
-                    double duration = (endTime - startTime).TotalSeconds;
-
-                    _logger.LogToUser($"Прошивка завершилась за {duration:F2} секунд.", LogLevel.Info);
-                    _logger.LogToUser($"Код выхода процесса: {process.ExitCode}", LogLevel.Debug);
-
-                    if (process.ExitCode != 0)
-                    {
-                        _logger.LogToUser($"Ошибка прошивки! Код выхода: {process.ExitCode}", LogLevel.Error);
-
-                        ServerTestResult.AddSubTest($"прошивка SWD", false, $"{process.ExitCode}");
-                        return false;
-                    }
-
-                    _logger.LogToUser("Прошивка завершена успешно!", LogLevel.Success);
-
-                    ServerTestResult.AddSubTest($"прошивка SWD", true, $"{firmwarePath}");
-                    return true;
+                    _logger.LogToUser("Не удалось включить питание на V52.", LogLevel.Error);
+                    ServerTestResult.AddSubTest("питание V52", false, "не удалось включить питание");
+                    return false;
                 }
             }
-            catch (Exception ex)
+
+            string batPath = TestConfig.McuFlashScriptPath;
+            string binPath = TestConfig.McuFirmwareBinaryPath;
+
+            if (string.IsNullOrEmpty(batPath) || string.IsNullOrEmpty(binPath))
             {
-                _logger.LogToUser($"Ошибка во время прошивки MCU: {ex.Message}", LogLevel.Error);
-                ServerTestResult.AddSubTest($"прошивка SWD", false, $"{ex.Message}");
+                _logger.LogToUser("Пути к скрипту или прошивке MCU не заданы.", LogLevel.Error);
+                ServerTestResult.AddSubTest("прошивка MCU", false, "пути к скрипту или прошивке не заданы");
                 return false;
             }
+
+            bool result = await _mcuProgrammerService.FlashMcuAsync(batPath, binPath, cancellationToken);
+
+            if (result)
+            {
+                _logger.LogToUser("Прошивка MCU завершена успешно!", LogLevel.Success);
+                ServerTestResult.AddSubTest("прошивка MCU", true, $"{binPath}");
+            }
+            else
+            {
+                _logger.LogToUser("Ошибка при прошивке MCU.", LogLevel.Error);
+                ServerTestResult.AddSubTest("прошивка MCU", false, "ошибка прошивки");
+            }
+
+            return result;
         }
+
 
 
         #endregion прошивка 2
@@ -1666,7 +1608,7 @@ namespace RTL.ViewModels
             if (!IsDutSelfTestEnabled)
             {
                 _logger.LogToUser("Самотестирование DUT отключено, тест пропущен.", LogLevel.Warning);
-                return true; 
+                return true;
             }
             ProgressValue += 5;
             // Ожидание загрузки DUT после прошивки
@@ -1776,7 +1718,7 @@ namespace RTL.ViewModels
                 _logger.LogToUser("Тест TAMPER пропущен (отключен в конфигурации).", LogLevel.Info);
                 TamperStatus = 1;
             }
-            
+
             ProgressValue += 5;
             // RS485
 
@@ -2100,6 +2042,45 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Запуск самотестирования DUT...", LogLevel.Info);
 
+                // 1. Проверка версии прошивки
+
+                if (!string.IsNullOrWhiteSpace(TestConfig.FlashFirmwareVersion))
+                {
+                    string versionResult = await SendConsoleCommandAsync("ubus call system board");
+
+                    _logger.Log($"Результат ubus call system board: {versionResult}", LogLevel.Debug);
+
+                    string? fwVersionActual = ExtractVersionFromUbusResponse(versionResult);
+                    if (string.IsNullOrEmpty(fwVersionActual))
+                    {
+                        _logger.LogToUser("Ошибка парсинга версии прошивки: параметр release.version не найден.", LogLevel.Error);
+                        ServerTestResult.AddSubTest("FirmwareVersion", false, "release.version не найден");
+                        return false;
+                    }
+
+                    _logger.LogToUser($"Обнаружена версия прошивки: {fwVersionActual}", LogLevel.Info);
+                    _logger.LogToUser($"Требуемая версия прошивки: {TestConfig.FlashFirmwareVersion}", LogLevel.Info);
+
+                    int cmp = CompareVersions(fwVersionActual, TestConfig.FlashFirmwareVersion);
+                    _logger.Log($"Результат сравнения версий: actual={fwVersionActual}, required={TestConfig.FlashFirmwareVersion}, cmp={cmp}", LogLevel.Debug);
+
+                    if (cmp < 0)
+                    {
+                        string msg = $"Прошивка устарела: требуется ≥ {TestConfig.FlashFirmwareVersion}, установлена {fwVersionActual}";
+                        _logger.LogToUser(msg, LogLevel.Error);
+                        ServerTestResult.AddSubTest("FirmwareVersion", false, msg);
+                        return false;
+                    }
+
+                    ServerTestResult.AddSubTest("FirmwareVersion", true, $"v{fwVersionActual}");
+                }
+                else
+                {
+                    _logger.Log("TestConfig.FlashFirmwareVersion пуст, проверка версии прошивки пропущена", LogLevel.Debug);
+                }
+
+
+                // 2. Проверка HW ошибок
                 string[] errorParams = { "HW_ERR1", "HW_ERR2", "HW_ERR3" };
                 var errorsDetected = new List<string>();
 
@@ -2117,17 +2098,16 @@ namespace RTL.ViewModels
 
                     _logger.Log($"Результат {param}: {result}", LogLevel.Debug);
 
-                    // Пытаемся извлечь значение параметра (ожидается формат "HW_ERRx": "0")
                     string expectedKey = $"\"{param}\": \"";
-                    int index = result.IndexOf(expectedKey);
-                    if (index == -1)
+                    int indexParam = result.IndexOf(expectedKey);
+                    if (indexParam == -1)
                     {
                         _logger.Log($"Ошибка парсинга ответа для {param}. Ответ: {result}", LogLevel.Error);
                         errorsDetected.Add($"{param}=недоступен");
                         continue;
                     }
 
-                    string value = result.Substring(index + expectedKey.Length, 1); // только 1 символ: "0" или "1"
+                    string value = result.Substring(indexParam + expectedKey.Length, 1); // "0" или "1"
                     if (value != "0")
                     {
                         errorsDetected.Add($"{param}={value}");
@@ -2153,6 +2133,51 @@ namespace RTL.ViewModels
                 return false;
             }
         }
+
+        private int CompareVersions(string actual, string required)
+        {
+            var actualParts = actual.Split('.').Select(p => int.TryParse(p, out int val) ? val : 0).ToArray();
+            var requiredParts = required.Split('.').Select(p => int.TryParse(p, out int val) ? val : 0).ToArray();
+
+            int length = Math.Max(actualParts.Length, requiredParts.Length);
+            for (int i = 0; i < length; i++)
+            {
+                int a = i < actualParts.Length ? actualParts[i] : 0;
+                int b = i < requiredParts.Length ? requiredParts[i] : 0;
+                int diff = a - b;
+                if (diff != 0) return diff;
+            }
+            return 0;
+        }
+        private string? ExtractVersionFromUbusResponse(string response)
+        {
+            try
+            {
+                int jsonStart = response.IndexOf('{');
+                int jsonEnd = response.LastIndexOf('}');
+
+                if (jsonStart == -1 || jsonEnd == -1 || jsonEnd <= jsonStart)
+                    return null;
+
+                string json = response.Substring(jsonStart, jsonEnd - jsonStart + 1);
+
+                var root = System.Text.Json.JsonSerializer.Deserialize<JsonElement>(json);
+
+                if (root.TryGetProperty("release", out var release) &&
+                    release.TryGetProperty("version", out var versionProp))
+                {
+                    return versionProp.GetString();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Ошибка при разборе JSON ubus system board: {ex.Message}", LogLevel.Error);
+            }
+
+            return null;
+        }
+
+
 
 
         #endregion Самотестирование 
@@ -2561,37 +2586,48 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser("Тестирование PoE интерфейса…", LogLevel.Info);
 
-                // Выполнение команды для получения информации о PoE
                 string poeResponse = await SendConsoleCommandAsync("ubus call poe info");
 
                 if (string.IsNullOrWhiteSpace(poeResponse))
                 {
                     _logger.LogToUser("Ошибка: Команда 'ubus call poe info' не вернула ответ.", LogLevel.Error);
-                    ServerTestResult.AddSubTest($"poe", false, $"Команда 'ubus call poe info' не вернула ответ");
-
+                    ServerTestResult.AddSubTest("poe", false, "Пустой ответ от ubus");
                     return false;
                 }
 
-                _logger.Log($"Получен ответ от PoE: {poeResponse}", LogLevel.Info);
+                _logger.Log($"Ответ от PoE: {poeResponse}", LogLevel.Debug);
 
-                if (poeResponse.Contains("\"budget\":"))
+                if (TestConfig.DutPoeTest)
                 {
-                    _logger.LogToUser("Тестирование PoE интерфейса завершено успешно.", LogLevel.Success);
-                    ServerTestResult.AddSubTest($"poe", true, $"1");
-                    return true;
+                    bool firmwareOk = poeResponse.Contains($"\"firmware\": \"{TestConfig.Firmware}\"");
+                    bool mcuOk = poeResponse.Contains($"\"mcu\": \"{TestConfig.Mcu}\"");
+
+                    if (!firmwareOk || !mcuOk)
+                    {
+                        _logger.LogToUser("Ошибка: параметры прошивки PoE не совпадают с ожидаемыми.", LogLevel.Error);
+                        _logger.Log($"Ожидалось: firmware={TestConfig.Firmware}, mcu={TestConfig.Mcu}", LogLevel.Debug);
+                        _logger.Log($"Ответ: {poeResponse}", LogLevel.Debug);
+
+                        ServerTestResult.AddSubTest("poe", false,
+                            $"Ожидалось firmware: {TestConfig.Firmware}, mcu: {TestConfig.Mcu}; ответ: {poeResponse}");
+                        return false;
+                    }
                 }
 
-                _logger.Log("Ошибка: В ответе отсутствует ключ 'budget'.", LogLevel.Error);
-                ServerTestResult.AddSubTest($"poe", false, $"В ответе отсутствует ключ 'budget'");
-                return false;
+                _logger.LogToUser("Тестирование PoE интерфейса завершено успешно.", LogLevel.Success);
+                ServerTestResult.AddSubTest("poe", true, "Параметры прошивки совпадают");
+                return true;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время тестирования PoE: {ex.Message}", LogLevel.Error);
-                ServerTestResult.AddSubTest($"poe", false, $"{ex.Message}");
+                ServerTestResult.AddSubTest("poe", false, ex.Message);
                 return false;
             }
         }
+
+
+
 
         #endregion POE
 
@@ -2646,11 +2682,13 @@ namespace RTL.ViewModels
 
         public static TestResult ServerTestResult;
 
-        public RtlSwViewModel(Loggers logger, ReportService report)
+        public RtlSwViewModel([Inject(Key = "SW")] Loggers logger, ReportService report, IFlashProgrammerService flashProgrammerService, IMcuProgrammerService mcuProgrammerService)
         {
 
             SessionId = App.StartupSessionId;
             _isFirstFlashProgramming = true; // для первоначальной настройки xgpro.exe
+            _flashProgrammerService = flashProgrammerService;
+            _mcuProgrammerService = mcuProgrammerService;
 
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             _printerService = new TscPrinterService("TSC TE310");
@@ -2664,7 +2702,7 @@ namespace RTL.ViewModels
             OpenFlashProgramCommand = new AsyncRelayCommand(OpenFlashProgramAsync, () => true);
             OpenSwdProgramCommand = new AsyncRelayCommand(OpenSwdProgramAsync, () => true);
             ConnectCommand = new AsyncRelayCommand(ToggleConnectionAsync);  // Кнопка "Подключиться к стенду
-
+            OpenInstructionCommand = new AsyncRelayCommand(OpenInstructionAsync, () => IsTestProfileLoaded);
             if (TestConfig != null)
             {
                 TestConfig.PropertyChanged += ProfileTest_PropertyChanged;
@@ -2674,6 +2712,8 @@ namespace RTL.ViewModels
                 _logger.Log("Ошибка: TestConfig не инициализирован!", Loggers.LogLevel.Error);
             }
 
+            
+
 
             /*Task.Run(async () => // Автоматическое подключение к стенду
             {
@@ -2682,13 +2722,39 @@ namespace RTL.ViewModels
             });*/
         }
 
+        private async Task OpenInstructionAsync()
+        {
+            await Task.Yield(); // Нужен, чтобы метод считался "асинхронным"
+
+            var pdfPath = TestConfig.FlashInstructionPath;
+            if (!File.Exists(pdfPath))
+            {
+                _logger.LogToUser($"Файл инструкции не найден: {pdfPath}", Loggers.LogLevel.Error);
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = pdfPath,
+                    UseShellExecute = true
+                });
+                _logger.LogToUser("Открыта инструкция по прошивке.", Loggers.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при открытии инструкции: {ex.Message}", Loggers.LogLevel.Error);
+            }
+        }
+
 
         private async Task OpenFlashProgramAsync()
         {
             try
             {
-                string exePath = Properties.Settings.Default.FlashProgramPath;
-                string tempPdfPath = Path.Combine(Path.GetTempPath(), "Прошивка.pdf");
+                string exePath = Properties.Settings.Default.FlashProgramPath; // Путь к прошивальщику
+                string pdfPath = TestConfig.FlashInstructionPath; // Путь к PDF инструкции
 
                 if (!File.Exists(exePath))
                 {
@@ -2701,36 +2767,20 @@ namespace RTL.ViewModels
                 await WriteToRegisterWithRetryAsync(2307, 1);
                 _logger.LogToUser("Питание подано", LogLevel.Debug);
 
-                // Открытие инструкции, если ещё не открыта
-                if (!IsPdfInstructionAlreadyOpen(tempPdfPath))
+                // Открываем PDF, если файл существует
+                if (File.Exists(pdfPath))
                 {
-                    using (Stream resource = Assembly.GetExecutingAssembly()
-                        .GetManifestResourceStream("RTL.Resources.Instructions.instructionForSw.pdf"))
+                    // Запускаем PDF (если откроется, значит открылся, иначе ошибка)
+                    Process.Start(new ProcessStartInfo
                     {
-                        if (resource != null)
-                        {
-                            using (FileStream file = new FileStream(tempPdfPath, FileMode.Create, FileAccess.Write))
-                            {
-                                await resource.CopyToAsync(file);
-                            }
-
-                            Process.Start(new ProcessStartInfo
-                            {
-                                FileName = tempPdfPath,
-                                UseShellExecute = true
-                            });
-
-                            _logger.LogToUser("Инструкция открыта.", LogLevel.Info);
-                        }
-                        else
-                        {
-                            _logger.LogToUser("Встроенный PDF не найден.", LogLevel.Error);
-                        }
-                    }
+                        FileName = pdfPath,
+                        UseShellExecute = true
+                    });
+                    _logger.LogToUser("Инструкция открыта.", LogLevel.Info);
                 }
                 else
                 {
-                    _logger.LogToUser("Инструкция уже открыта. Повторный запуск не требуется.", LogLevel.Info);
+                    _logger.LogToUser($"Файл инструкции не найден: {pdfPath}", LogLevel.Warning);
                 }
 
                 // Запуск программы прошивки
@@ -2743,10 +2793,7 @@ namespace RTL.ViewModels
                 if (flashProcess != null)
                 {
                     _logger.LogToUser("Программа прошивки запущена. Ожидаю завершения...", LogLevel.Info);
-
-                    // Асинхронно ждём завершения процесса
                     await Task.Run(() => flashProcess.WaitForExit());
-
                     _logger.LogToUser("Программа прошивки завершена.", LogLevel.Info);
                 }
                 else
@@ -2758,6 +2805,7 @@ namespace RTL.ViewModels
                 await WriteToRegisterWithRetryAsync(2301, 0);
                 await WriteToRegisterWithRetryAsync(2307, 0);
                 _logger.LogToUser("Питание снято", LogLevel.Debug);
+
                 _isFirstFlashProgramming = false;
             }
             catch (Exception ex)
@@ -2765,112 +2813,54 @@ namespace RTL.ViewModels
                 _logger.LogToUser($"Ошибка при запуске: {ex.Message}", LogLevel.Error);
             }
         }
+
         private async Task OpenSwdProgramAsync()
         {
             try
             {
-                string flashToolPath = Properties.Settings.Default.SwdProgramPath;
-                string firmwarePath = Properties.Settings.Default.SwdFirmwarePath;
-                string workingDirectory = Path.GetDirectoryName(flashToolPath);
-
-                if (!File.Exists(flashToolPath))
+                if (!TestConfig.IsMcuProgrammingEnabled)
                 {
-                    _logger.LogToUser($"Скрипт прошивки не найден: {flashToolPath}", LogLevel.Error);
+                    _logger.LogToUser("Прошивка MCU отключена в профиле тестирования.", LogLevel.Warning);
                     return;
                 }
 
-                if (string.IsNullOrWhiteSpace(firmwarePath) || !File.Exists(firmwarePath))
+                string batPath = TestConfig.McuFlashScriptPath;
+                string binPath = TestConfig.McuFirmwareBinaryPath;
+
+                if (string.IsNullOrWhiteSpace(batPath) || string.IsNullOrWhiteSpace(binPath))
                 {
-                    _logger.LogToUser($"Файл прошивки не найден: {firmwarePath}", LogLevel.Error);
+                    _logger.LogToUser("Пути к скрипту или прошивке MCU не заданы в профиле.", LogLevel.Error);
                     return;
                 }
 
+                // Подача питания перед прошивкой
                 _logger.LogToUser("Подача питания перед прошивкой...", LogLevel.Info);
-                await WriteToRegisterWithRetryAsync(2301, 1);
+                bool powerOnResult = await WriteToRegisterWithRetryAsync(2301, 1);
+                if (!powerOnResult)
+                {
+                    _logger.LogToUser("Не удалось включить питание перед прошивкой.", LogLevel.Error);
+                    return;
+                }
                 await Task.Delay(1000);
 
-                string formattedFirmwarePath = $"\"{firmwarePath.Replace("\\", "/")}\"";
+                // Запуск прошивки через сервис
+                bool flashResult = await _mcuProgrammerService.FlashMcuAsync(batPath, binPath, CancellationToken.None);
 
-                var psi = new ProcessStartInfo
-                {
-                    FileName = flashToolPath,
-                    Arguments = formattedFirmwarePath,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    WorkingDirectory = workingDirectory
-                };
-
-                _logger.LogToUser($"Запуск прошивки с аргументом: {formattedFirmwarePath}", LogLevel.Info);
-
-                int exitCode = -1;
-
-                using (var process = new Process { StartInfo = psi })
-                {
-                    process.OutputDataReceived += (s, e) =>
-                    {
-                        if (!string.IsNullOrEmpty(e.Data))
-                            _logger.Log(e.Data, LogLevel.Debug);
-                    };
-
-                    process.ErrorDataReceived += (s, e) =>
-                    {
-                        if (!string.IsNullOrEmpty(e.Data))
-                            _logger.Log(e.Data, LogLevel.Error);
-                    };
-
-                    process.Start();
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-
-                    var timeoutTask = Task.Delay(TimeSpan.FromSeconds(20));
-                    var waitForExitTask = process.WaitForExitAsync();
-
-                    var completedTask = await Task.WhenAny(waitForExitTask, timeoutTask);
-
-                    if (completedTask == timeoutTask)
-                    {
-                        try
-                        {
-                            _logger.LogToUser("Время ожидания прошивки истекло. Возможна проблема с программатором.", LogLevel.Warning);
-                            if (!process.HasExited)
-                                process.Kill();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogToUser($"Ошибка при попытке завершить процесс: {ex.Message}", LogLevel.Error);
-                        }
-
-                        return;
-                    }
-
-                    exitCode = process.ExitCode;
-                }
-
-                if (exitCode != 0)
-                {
-                    _logger.LogToUser($"Ошибка прошивки! Код выхода: {exitCode}", LogLevel.Error);
-
-                    if (exitCode == 1)
-                        _logger.LogToUser("Возможно, устройство не подключено или не найдено.", LogLevel.Warning);
-                    else if (exitCode == 2)
-                        _logger.LogToUser("Ошибка доступа к HEX-файлу или неверный путь.", LogLevel.Warning);
-                }
+                if (flashResult)
+                    _logger.LogToUser("Прошивка MCU успешно завершена.", LogLevel.Success);
                 else
-                {
-                    _logger.LogToUser("Прошивка успешно завершена.", LogLevel.Success);
-                }
+                    _logger.LogToUser("Прошивка MCU завершилась с ошибкой.", LogLevel.Error);
 
-                await Task.Delay(500);
+                // Снятие питания после прошивки
                 await WriteToRegisterWithRetryAsync(2301, 0);
-                _logger.LogToUser("Питание снято", LogLevel.Info);
+                _logger.LogToUser("Питание снято после прошивки.", LogLevel.Info);
             }
             catch (Exception ex)
             {
-                _logger.LogToUser($"❌ Исключение при прошивке: {ex.Message}", LogLevel.Error);
+                _logger.LogToUser($"Исключение при прошивке MCU: {ex.Message}", LogLevel.Error);
             }
         }
+
         private bool IsPdfInstructionAlreadyOpen(string pdfPath)
         {
             var processes = Process.GetProcesses();
@@ -2889,7 +2879,7 @@ namespace RTL.ViewModels
                 }
             });
         }
-       
+
         private async Task<bool> TryReconnectModbusAsync()
         {
             for (int attempt = 1; attempt <= 3; attempt++)
@@ -3185,7 +3175,7 @@ namespace RTL.ViewModels
 
                     ServerTestResult.deviceSerial = di.serialNumber;
                     _logger.LogToUser($"Серийный номер устройства, полученный от сервера: {di.serialNumber}", LogLevel.Info);
-                    _logger.Log( $"DeviceInfo: serialNumber={di.serialNumber}, hw_version={di.hw_version}, identifier={di.identifier}", LogLevel.Debug);
+                    _logger.Log($"DeviceInfo: serialNumber={di.serialNumber}, hw_version={di.hw_version}, identifier={di.identifier}", LogLevel.Debug);
                 }
                 catch (Exception ex)
                 {

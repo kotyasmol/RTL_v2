@@ -34,6 +34,18 @@ namespace RTL
                 return new FlashProgrammerService(poeLogger);
             }).InSingletonScope();
 
+            builder.Bind<IMcuProgrammerService>().ToFactory(container =>
+            {
+                var poeLogger = container.Get<Loggers>("POE");
+                return new McuProgrammerService(poeLogger);
+            }).InSingletonScope();
+
+            builder.Bind<ITestTimeoutService>().ToFactory(container =>
+            {
+                var poeLogger = container.Get<Loggers>("POE");
+                return new TestTimeoutService(poeLogger);
+            }).InSingletonScope();
+
 
             builder.Bind<RtlSwViewModel>().ToSelf();
             builder.Bind<RtlPoeViewModel>().ToSelf();

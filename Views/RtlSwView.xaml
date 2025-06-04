@@ -368,27 +368,57 @@
                 </StackPanel>
             </Expander>
             <StackPanel Grid.Column="1" Grid.Row="0" Margin="10,20,100,0" VerticalAlignment="Top">
-                <Button Content="📄FLASH"
-            Command="{Binding OpenFlashProgramCommand}"
-            IsEnabled="{Binding IsModbusConnected }"
-            Padding="12,6"
-            Width="100"
-            Height="40"
-            FontWeight="Bold"
-            Background="#1562FE"
-            Foreground="White"
-            ToolTip="Открыть программу прошивки"/>
+                <!-- FLASH + ℹ в одной строке -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100"/>
+                        <!-- Ширина FLASH -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- Ширина ℹ -->
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0"
+                Content="📄FLASH"
+                Command="{Binding OpenFlashProgramCommand}"
+                IsEnabled="{Binding IsModbusConnected}"
+                Padding="12,6"
+                Height="40"
+                            Width="105"
+                FontWeight="Bold"
+                Background="#1562FE"
+                Foreground="White"
+                ToolTip="Открыть программу прошивки" />
+
+                    <Button Grid.Column="1"
+                Content="ℹ"
+                Command="{Binding OpenInstructionCommand}"
+                IsEnabled="{Binding IsTestProfileLoaded}"
+                Width="38"
+                Height="40"
+                FontWeight="Bold"
+                FontSize="16"
+                Background="#1562FE"
+                Foreground="White"
+                ToolTip="Открыть инструкцию по прошивке"
+                VerticalAlignment="Center"
+                BorderThickness="0"
+                Margin="5,0,0,0"
+                Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" />
+                </Grid>
+
+                <!-- SWD кнопка с увеличенной шириной -->
                 <Button Content="📄SWD"
             Command="{Binding OpenSwdProgramCommand}"
-            IsEnabled="{Binding IsModbusConnected }"
+            IsEnabled="{Binding IsModbusConnected}"
             Padding="12,6"
-            Width="100"
-            Height="40"
+            Width="143" 
+                    Height="40"
             FontWeight="Bold"
             Background="#1562FE"
             Foreground="White"
-            ToolTip="Открыть программу прошивки"/>
+            ToolTip="Открыть программу прошивки" />
             </StackPanel>
+
             <!-- WrapPanel с элементами -->
             <WrapPanel Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal">
                 <!-- 52V 2309 -->

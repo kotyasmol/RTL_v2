@@ -196,14 +196,56 @@ namespace RTL.Models
         }
         #region
         // 3. Прошивка Flash
-        [JsonProperty("3. Прошивка flash")]
-        public bool IsFlashProgrammingEnabled { get; set; }
+        private bool _flashFirmwareAuto;
+        [JsonProperty("3. Прошивка FLASH")]
+        public bool FlashFirmwareAuto
+        {
+            get => _flashFirmwareAuto;
+            set => SetAndNotify(ref _flashFirmwareAuto, value);
+        }
+        private string _instruction;
+
+
+        private string _flashvers;
+        [JsonProperty("firmware_vers")]
+        public string FlashFirmwareVersion
+        {
+            get => _flashvers;
+            set => SetAndNotify(ref _flashvers, value);
+        }
+
+        private string _flashXgproPath;
+        [JsonProperty("flash_mpj_path")]
+        public string FlashXgproPath
+        {
+            get => _flashXgproPath;
+            set => SetAndNotify(ref _flashXgproPath, value);
+        }
+
+        private string _flashInstructionPath;
+        [JsonProperty("flash_instruction_path")]
+        public string FlashInstructionPath
+        {
+            get => _flashInstructionPath;
+            set => SetAndNotify(ref _flashInstructionPath, value);
+        }
+
         [JsonProperty("flash_delay_timeout")]
-        public ushort FlashDelay { get; set; } 
+        public ushort FlashDelay { get; set; }
 
         // 4. Прошивка MCU
+
         [JsonProperty("4. Прошивка MCU")]
         public bool IsMcuProgrammingEnabled { get; set; }
+
+        [JsonProperty("firmware_swd_vers")]
+        public string RequiredMcuFirmwareVersion { get; set; }
+
+        [JsonProperty("mcu_bat_path")]
+        public string McuFlashScriptPath { get; set; }
+
+        [JsonProperty("mcu_bin_path")]
+        public string McuFirmwareBinaryPath { get; set; }
 
         // 5. Самотестирование
         [JsonProperty("5. Самотестирование")]
@@ -249,8 +291,17 @@ namespace RTL.Models
         [JsonProperty("dut_tamper_led_max")]
         public ushort DutTamperLedMax { get; set; }
 
+
         [JsonProperty("dut_poe_test")]
         public bool DutPoeTest { get; set; }
+
+        [JsonProperty("firmware")]
+        public string Firmware { get; set; }
+
+        [JsonProperty("mcu")]
+        public string Mcu { get; set; }
+
+
 
         [JsonProperty("dut_rs485_test")]
         public bool DutRs485Test { get; set; }

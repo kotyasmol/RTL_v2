@@ -86,6 +86,23 @@ namespace RTL.Models
             set => SetAndNotify(ref _mcuBatPath, value);
         }
 
+        private string _mcuBinPath;
+        [JsonProperty("mcu_bin_path")]
+        public string McuBinPath
+        {
+            get => _mcuBinPath;
+            set => SetAndNotify(ref _mcuBinPath, value);
+        }
+
+        private string _mcuReadIdBatPath;
+        [JsonProperty("mcu_read_id_bat_path")]
+        public string McuReadIdBatPath
+        {
+            get => _mcuReadIdBatPath;
+            set => SetAndNotify(ref _mcuReadIdBatPath, value);
+        }
+
+
         private int _startupTime;
         [JsonProperty("startup_time")]
         public int StartUpTime

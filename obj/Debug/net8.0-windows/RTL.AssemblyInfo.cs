@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TFortisBoard")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+22daa9f160b59ee0008704bf2496ba3e4a4708bc")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d4ae9a395e3ec98bd5f826cc0d3c1839ce381f16")]
 [assembly: System.Reflection.AssemblyProductAttribute("TFortisBoard")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TFortisBoard")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

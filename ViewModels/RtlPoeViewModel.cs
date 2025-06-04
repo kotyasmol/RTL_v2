@@ -19,6 +19,8 @@ using System.Net.Http;
 using FTServiceUtils;
 using FTServiceUtils.Enums;
 using System.Configuration;
+using System.Text;
+using System.Threading.Channels;
 namespace RTL.ViewModels
 {
     public class RtlPoeViewModel : Screen
@@ -89,17 +91,23 @@ namespace RTL.ViewModels
         private bool _isFirstFlashProgramming; // флаг для показа инструкции перед прошивкой 
 
         private readonly IFlashProgrammerService _flashProgrammerService;
+        private readonly IMcuProgrammerService _mcuProgrammerService;
+        private readonly ITestTimeoutService _timeoutService;
 
-        public RtlPoeViewModel([Inject(Key = "POE")] Loggers logger,IFlashProgrammerService flashProgrammerService)
+
+        public RtlPoeViewModel([Inject(Key = "POE")] Loggers logger,IFlashProgrammerService flashProgrammerService, IMcuProgrammerService mcuProgrammerService, ITestTimeoutService timeoutService)
         {
             _logger = logger;
             _flashProgrammerService = flashProgrammerService;
+            _mcuProgrammerService = mcuProgrammerService;
+            _timeoutService = timeoutService;
             _modbusService = new ModbusService(_logger, () => RTL.Properties.Settings.Default.ComPoe);
             ConnectCommand = new RelayCommand(async () => await ToggleConnectionAsync());
             OpenFlashProgramCommand = new AsyncRelayCommand(OpenFlashProgramAsync, () => IsStandConnected);
             OpenInstructionCommand = new AsyncRelayCommand(OpenInstructionAsync, () => IsStandConnected);
 
             _isFirstFlashProgramming = true;
+            
         }
 
         private void ScrollToEnd(object sender, NotifyCollectionChangedEventArgs e)
@@ -380,7 +388,7 @@ namespace RTL.ViewModels
                         if (_isPoeTestRunning)
                         {
                             _logger.LogToUser("Тумблер RUN выключен. Прерывание теста.", Loggers.LogLevel.Warning);
-                            await StopHard();
+                            //await StopHard(); ---- возможно не нужно убирать. дублировались логи и поэтому закомментировано
                             _testCts?.Cancel();
                         }
                         else
@@ -526,14 +534,14 @@ namespace RTL.ViewModels
             {
                 ServerPoeTestResult = new TestResult
                 {
-                    deviceType = DeviceType.RTL_SW,
-                    standName = Environment.MachineName,
-                    isSuccess = false,
-                    deviceIdent = "abracadabra123", // серийник платы
-                    isFull = false,
+                    deviceType = DeviceType.RTL_POE,
+                    standName = Environment.MachineName, // заменить на серийный номер стенда
+                    isSuccess = true,
+                    deviceIdent = "413148580e5939514c53698b", // серийник платы
+                    isFull = true,
                 };
-                //ServerPoeTestResult.deviceSerial = "31200001"; --- Эта ерунда всё ломает. никогда не указывать вручную. 
-                ServerPoeTestResult.AddSubTest($"название теста ", true, $"результаты измерений и мин/макс допуски");
+                //ServerPoeTestResult.deviceSerial = "31200001"; --- Эта ерунда всё ломает. не указывать вручную. 
+                //ServerPoeTestResult.AddSubTest($"название теста ", true, $"результаты измерений и мин/макс допуски");
 
 
                 _logger.LogToUser("Тестирование POE платы запущено.", Loggers.LogLevel.Info);
@@ -555,17 +563,18 @@ namespace RTL.ViewModels
 
 
                 // === Подтест 2 === MCU
-                if (TestConfig.McuFirmwareAuto)
+                if (TestConfig?.McuFirmwareAuto == true)
                 {
-                    _logger.LogToUser("Подтест 2: запуск...", Loggers.LogLevel.Info);
-                    if (!await RunPoeSubTest2Async(token)) return;
-                    _logger.LogToUser("Подтест 2: успешно завершён.", Loggers.LogLevel.Success);
+                    _logger.LogToUser("MCU прошивка: запуск...", Loggers.LogLevel.Info);
+                    if (!await RunMcuProgrammingAsync(token)) return;
+                    _logger.LogToUser("MCU прошивка: успешно завершена.", Loggers.LogLevel.Success);
                 }
                 else
                 {
-                    _logger.LogToUser("Подтест 2: пропущен (отключён в профиле).", Loggers.LogLevel.Warning);
+                    _logger.LogToUser("MCU Прошивка: пропущена (отключена в профиле).", Loggers.LogLevel.Warning);
                     ServerPoeTestResult.isFull = false;
                 }
+
                 // перезагрузка платы
                 if (!await StartBoardPowerSequenceAsync(token))
                 {
@@ -577,9 +586,11 @@ namespace RTL.ViewModels
                 if (TestConfig?.Is3v3TestRequired == true)
                 {
                     _logger.LogToUser("Проверка напряжения 3.3В...", Loggers.LogLevel.Info);
-                    if (!await RunCheck3V3VoltageTestAsync(token)) return;
+                    if (!await _timeoutService.RunWithTimeoutAsync(RunCheck3V3VoltageTestAsync, "Проверка 3.3В", TimeSpan.FromSeconds(5), token))
+                        return;
                     _logger.LogToUser("Проверка напряжения 3.3В успешно завершена.", Loggers.LogLevel.Success);
                 }
+
                 else
                 {
                     _logger.LogToUser("Проверка напряжения 3.3В отключена в профиле тестирования.", Loggers.LogLevel.Warning);
@@ -647,7 +658,7 @@ namespace RTL.ViewModels
                     ServerPoeTestResult.isFull = false;
                 }
 
-                await LoadPoeReportAsync(); //потом убрать
+                
 
                 _logger.LogToUser("Все активные подтесты завершены успешно.", Loggers.LogLevel.Success);
                 await StopHard();
@@ -721,25 +732,111 @@ namespace RTL.ViewModels
                 return false;
             }
         }
-
-
-
-        private async Task<bool> RunPoeSubTest2Async(CancellationToken token)
+        private async Task<bool> RunMcuProgrammingAsync(CancellationToken token)
         {
             try
             {
-                await Task.Delay(1000, token); // имитация долгой операции
+                var batPath = TestConfig.McuBatPath;
+                var binPath = TestConfig.McuBinPath;
+                var readIdPath = TestConfig.McuReadIdBatPath;
+
+                if (string.IsNullOrEmpty(batPath) || !File.Exists(batPath))
+                {
+                    _logger.LogToUser("Файл .bat для MCU не указан или не найден.", Loggers.LogLevel.Error);
+                    return false;
+                }
+
+                if (string.IsNullOrEmpty(binPath) || !File.Exists(binPath))
+                {
+                    _logger.LogToUser("Файл .bin для MCU не указан или не найден.", Loggers.LogLevel.Error);
+                    return false;
+                }
+
+                if (!await _mcuProgrammerService.FlashMcuAsync(batPath, binPath, token))
+                {
+                    ServerPoeTestResult.isFull = false;
+                    return false;
+                }
+
+                // Получение MCU ID
+                if (!string.IsNullOrEmpty(readIdPath) && File.Exists(readIdPath))
+                {
+                    var serial = await GetMcuSerialAsync(readIdPath, token);
+                    if (!string.IsNullOrWhiteSpace(serial))
+                    {
+                        _logger.LogToUser($"MCU Serial: {serial}", Loggers.LogLevel.Info);
+                        ServerPoeTestResult.deviceIdent = serial; 
+                    }
+                    else
+                    {
+                        _logger.LogToUser("Не удалось получить серийный номер MCU.", Loggers.LogLevel.Warning);
+                    }
+                }
+                else
+                {
+                    _logger.LogToUser("Скрипт получения MCU ID не найден.", Loggers.LogLevel.Warning);
+                }
+
                 return true;
             }
             catch (OperationCanceledException)
             {
-                _logger.LogToUser("Подтест 2 был отменён.", Loggers.LogLevel.Warning);
+                _logger.LogToUser("Прошивка MCU была отменена пользователем.", Loggers.LogLevel.Warning);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogToUser($"Ошибка в подтесте 2: {ex.Message}", Loggers.LogLevel.Error);
+                _logger.LogToUser($"Ошибка при прошивке MCU: {ex.Message}", Loggers.LogLevel.Error);
                 return false;
+            }
+        }
+
+        private async Task<string?> GetMcuSerialAsync(string batPath, CancellationToken token)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c \"{batPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.GetEncoding(866),
+                    StandardErrorEncoding = Encoding.GetEncoding(866),
+                    WorkingDirectory = Path.GetDirectoryName(batPath) // важный момент!
+                };
+
+                using var process = new Process { StartInfo = startInfo };
+
+                process.Start();
+
+                string stdOutput = await process.StandardOutput.ReadToEndAsync();
+                string stdError = await process.StandardError.ReadToEndAsync();
+
+                await process.WaitForExitAsync(token);
+
+                _logger.Log($"StdOutput:\n{stdOutput}", Loggers.LogLevel.Debug);
+                _logger.Log($"StdError:\n{stdError}", Loggers.LogLevel.Debug);
+
+                var combinedOutput = stdOutput + "\n" + stdError;
+
+                var lines = combinedOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                var idLine = lines.FirstOrDefault(line => line.All(c => Uri.IsHexDigit(c)));
+
+                if (idLine == null)
+                {
+                    _logger.LogToUser("В выводе не найден серийный номер MCU.", Loggers.LogLevel.Warning);
+                    return null;
+                }
+
+                return idLine.Trim();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogToUser($"Ошибка при получении MCU ID: {ex.Message}", Loggers.LogLevel.Error);
+                return null;
             }
         }
 
@@ -758,7 +855,7 @@ namespace RTL.ViewModels
                     return false;
                 }
                 _logger.Log("Питание (52В) подано на плату.", Loggers.LogLevel.Info);
-
+                //await _modbusService.WriteSingleRegisterAsync(2492, 1);
                 token.ThrowIfCancellationRequested();
 
                 // 2. Перезагрузка платы: 2489 = 1 → подождать 2 сек → 2489 = 0
@@ -810,6 +907,8 @@ namespace RTL.ViewModels
             }
         }
 
+
+
         private async Task<bool> RunCheck3V3VoltageTestAsync(CancellationToken token)
         {
             try
@@ -846,8 +945,6 @@ namespace RTL.ViewModels
             }
         }
 
-
-
         private async Task<bool> RunCheckBoardVersionAsync(CancellationToken token)
         {
             try
@@ -860,22 +957,26 @@ namespace RTL.ViewModels
                 if (actualBoardVersion != expectedBoardVersion)
                 {
                     _logger.LogToUser($"Аппаратная версия платы: {actualBoardVersion} — не соответствует ожидаемой ({expectedBoardVersion}).", Loggers.LogLevel.Error);
+                    ServerPoeTestResult.AddSubTest($"Аппаратная версия платы", false, $"{actualBoardVersion} — не соответствует ожидаемой ({expectedBoardVersion})");
                     await StopHard();
                     return false;
                 }
 
                 _logger.LogToUser($"Аппаратная версия платы: {actualBoardVersion} — соответствует ожидаемой.", Loggers.LogLevel.Success);
+                ServerPoeTestResult.AddSubTest($"Аппаратная версия платы", true, $"{actualBoardVersion}");
                 return true;
             }
             catch (OperationCanceledException)
             {
                 _logger.LogToUser("Проверка версии платы была отменена пользователем.", Loggers.LogLevel.Warning);
+                ServerPoeTestResult.AddSubTest($"Аппаратная версия платы", false, $"проверка отменена вручную");
                 await StopHard();
                 return false;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка при проверке версии платы: {ex.Message}", Loggers.LogLevel.Error);
+                ServerPoeTestResult.AddSubTest($"Аппаратная версия платы", false, $"Ошибка при проверке версии платы: {ex.Message}");
                 await StopHard();
                 return false;
             }
@@ -912,24 +1013,29 @@ namespace RTL.ViewModels
                         string aStatus = aReg != 1 ? "A: нет PoE" : "A: ОК";
                         string bStatus = bReg != 1 ? "B: нет PoE" : "B: ОК";
                         _logger.LogToUser($"На порту {port} обнаружена проблема с подачей PoE. {aStatus}, {bStatus}.", Loggers.LogLevel.Error);
+                        ServerPoeTestResult.AddSubTest($"PoE-тест порта {port}", false, $"проблема с подачей PoE: A = {aStatus}, B = {bStatus}");
+
                         await StopHard();
                         return false;
                     }
 
                     _logger.LogToUser($"PoE успешно подано на порт {port}.", Loggers.LogLevel.Success);
-                    
+                    ServerPoeTestResult.AddSubTest($"PoE-тест порта {port}", true, $"A: OK, B: OK"); // ВОЗМОЖНО нужно выводить а и б 
+
                 }
                 return true;
             }
             catch (OperationCanceledException)
             {
                 _logger.LogToUser("Тест подачи PoE был отменён пользователем.", Loggers.LogLevel.Warning);
+                ServerPoeTestResult.AddSubTest($"PoE-тест портов", false, $"Тест подачи PoE был отменён пользователем");
                 await StopHard();
                 return false;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка при выполнении PoE-теста: {ex.Message}", Loggers.LogLevel.Error);
+                ServerPoeTestResult.AddSubTest($"PoE-тест портов", false, $"Ошибка при выполнении PoE-теста: {ex.Message}");
                 await StopHard();
                 return false;
             }
@@ -939,8 +1045,6 @@ namespace RTL.ViewModels
         {
             try
             {
-
-
 
                 _logger.Log("UART: Запускаем тест — записываем 1 в регистр 2493.", Loggers.LogLevel.Debug);
                 await _modbusService.WriteSingleRegisterAsync(2493, 1);
@@ -957,6 +1061,7 @@ namespace RTL.ViewModels
                 if (PoeRegisters.UartTestStart != 2)
                 {
                     _logger.LogToUser("Тест UART не запустился в течение 5 секунд.", Loggers.LogLevel.Error);
+                    ServerPoeTestResult.AddSubTest($"UART", false, $"Тест UART не запустился в течение 5 секунд.");
                     await StopHard();
                     return false;
                 }
@@ -977,10 +1082,12 @@ namespace RTL.ViewModels
                 if (PoeRegisters.UartTestResult == 2)
                 {
                     _logger.LogToUser("Тестирование UART прошло успешно.", Loggers.LogLevel.Success);
+                    ServerPoeTestResult.AddSubTest($"UART", true, $"успешно");
                 }
                 else if (PoeRegisters.UartTestResult == 3)
                 {
                     _logger.LogToUser("Тестирование UART неудачно.", Loggers.LogLevel.Error);
+                    ServerPoeTestResult.AddSubTest($"UART", false, $"ошибка");
                     await StopHard();
                     return false;
                 }
@@ -988,6 +1095,7 @@ namespace RTL.ViewModels
                 {
                     _logger.LogToUser("Тестирование UART завершено с неизвестным статусом.", Loggers.LogLevel.Warning);
                     _logger.Log($"UART: Неизвестный статус после теста: {PoeRegisters.UartTestResult}", Loggers.LogLevel.Debug);
+                    ServerPoeTestResult.AddSubTest($"UART", false, $"UART: Неизвестный статус после теста: {PoeRegisters.UartTestResult}");
                     await StopHard();
                     return false;
                 }
@@ -1016,11 +1124,13 @@ namespace RTL.ViewModels
                 if (isTestPassed)
                 {
                     _logger.LogToUser("Тестирование напряжений на каналах UART прошло успешно.", Loggers.LogLevel.Success);
+                    ServerPoeTestResult.AddSubTest($"UART напряжения", true, $"успешно");
                     return true;
                 }
                 else
                 {
                     _logger.LogToUser("Тестирование напряжений на каналах UART завершилось с ошибками.", Loggers.LogLevel.Error);
+                    ServerPoeTestResult.AddSubTest($"UART напряжения", false, $"ошибка");
                     await StopHard();
                     return false;
                 }
@@ -1028,6 +1138,7 @@ namespace RTL.ViewModels
             catch (OperationCanceledException)
             {
                 _logger.LogToUser("Тестирование интерфейса UART было отменено.", Loggers.LogLevel.Warning);
+                ServerPoeTestResult.AddSubTest($"UART", false, $"Прерван вручную");
                 await StopHard();
                 return false;
             }
@@ -1035,6 +1146,7 @@ namespace RTL.ViewModels
             {
                 _logger.LogToUser($"Ошибка при тестировании интерфейса UART: {ex.Message}", Loggers.LogLevel.Error);
                 _logger.Log( $"UART: Исключение - {ex}", Loggers.LogLevel.Debug);
+                ServerPoeTestResult.AddSubTest($"UART", false, $"UART: Исключение - {ex}");
                 await StopHard();
                 return false;
             }
@@ -1077,11 +1189,13 @@ namespace RTL.ViewModels
                     if (isMatch)
                     {
                         _logger.Log($"Порт {channel}: Цвет соответствует ожидаемому — R:{r}, G:{g}, B:{b}, W:{w}", Loggers.LogLevel.Debug);
+                        ServerPoeTestResult.AddSubTest($"Проверка светодиодов канал {channel}", true, $"Цвет соответствует ожидаемому ({TestConfig.LedColour})");
                     }
                     else
                     {
                         _logger.LogToUser($"Порт {channel}: Цвет не соответствует ожидаемому ({TestConfig.LedColour}).", Loggers.LogLevel.Error);
                         _logger.Log($"Порт {channel}: Получено — R:{r}, G:{g}, B:{b}, W:{w}", Loggers.LogLevel.Debug);
+                        ServerPoeTestResult.AddSubTest($"Проверка светодиодов канал {channel}", false, $"Цвет не соответствует ожидаемому ({TestConfig.LedColour})");
                         allOk = false;
                     }
 
@@ -1103,12 +1217,14 @@ namespace RTL.ViewModels
             catch (OperationCanceledException)
             {
                 _logger.LogToUser("Проверка светодиодов была отменена.", Loggers.LogLevel.Warning);
+                ServerPoeTestResult.AddSubTest($"Проверка светодиодов", false, $"Прерван вручную");
                 await StopHard();
                 return false;
             }
             catch (Exception ex)
             {
                 _logger.LogToUser($"Ошибка во время проверки светодиодов: {ex.Message}", Loggers.LogLevel.Error);
+                ServerPoeTestResult.AddSubTest($"Проверка светодиодов", false, $"Ошибка во время проверки светодиодов: {ex.Message}");
                 await StopHard();
                 return false;
             }
@@ -1149,8 +1265,6 @@ namespace RTL.ViewModels
                 _ => (0, 0, 0, 0)
             };
         }
-
-
 
         private async Task LoadPoeReportAsync()
         {
@@ -1247,9 +1361,13 @@ namespace RTL.ViewModels
 
 
             _logger.LogToUser("Прерывание тестирования...", Loggers.LogLevel.Warning);
+            
             await _modbusService.WriteSingleRegisterAsync(2403, 0);
             await _modbusService.WriteSingleRegisterAsync(2492, 0);
-
+            if (TestConfig.IsReportRequired)
+            {
+                await LoadPoeReportAsync();
+            }
             _logger.LogToUser("Питание снято. Плату можно безопасно извлечь из стенда.", Loggers.LogLevel.Info);
         }
     }
